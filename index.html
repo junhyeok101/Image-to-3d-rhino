@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Image → 3D Mesh → Rhino Pipeline</title>
+<style>
+  :root {
+    --bg: #000000; --panel: #0a0a0a; --panel-2: #141414; --border: #262626;
+    --text: #f5f5f5; --muted: #737373; --accent: #ffffff; --accent-2: #a3a3a3;
+    --ok: #10b981; --warn: #f59e0b; --err: #ef4444; --purple: #ffffff;
+    --glow: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: #000; color: var(--text); min-height: 100vh; }
+
+  /* === Hero banner === */
+  header {
+    position: relative;
+    padding: 80px 32px 60px;
+    border-bottom: 1px solid var(--border);
+    background: #000;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  /* animated grid backdrop */
+  header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 80%);
+    z-index: -2;
+  }
+  /* radial glow */
+  header::after {
+    content: '';
+    position: absolute;
+    top: -40%; left: 50%;
+    width: 800px; height: 800px;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 30%, transparent 70%);
+    z-index: -1;
+    animation: glowPulse 8s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  }
+  .hero-inner { max-width: 1400px; margin: 0 auto; position: relative; }
+  .hero-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 100px;
+    font-size: 12px; font-weight: 500;
+    color: #d4d4d4;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+  }
+  .hero-tag .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  header h1 {
+    margin: 0;
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.05;
+    background: linear-gradient(180deg, #ffffff 0%, #a3a3a3 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  header h1 .accent {
+    background: linear-gradient(135deg, #ffffff 0%, #737373 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-style: italic;
+  }
+  header p {
+    margin: 20px 0 0;
+    font-size: 17px;
+    color: #a3a3a3;
+    line-height: 1.6;
+    max-width: 680px;
+    font-weight: 400;
+  }
+  header p b { color: #f5f5f5; font-weight: 600; }
+  .hero-stats {
+    display: flex; gap: 32px;
+    margin-top: 36px;
+    flex-wrap: wrap;
+  }
+  .hero-stat { display: flex; flex-direction: column; gap: 2px; }
+  .hero-stat .v { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .hero-stat .l { font-size: 11px; color: #737373; text-transform: uppercase; letter-spacing: 1px; font-weight: 500; }
+  @media (max-width: 720px) {
+    header { padding: 56px 24px 44px; }
+    header h1 { font-size: 38px; letter-spacing: -1px; }
+    header p { font-size: 15px; }
+    .hero-stats { gap: 24px; margin-top: 28px; }
+  }
+  main { max-width: 1400px; margin: 0 auto; padding: 32px 32px; display: grid; gap: 24px; }
+  .card { background: #0a0a0a; border: 1px solid var(--border); border-radius: 16px; padding: 24px; transition: all 0.3s ease; }
+  .card:hover { border-color: #404040; }
+  .card h2 { margin: 0 0 18px; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; color: var(--text); }
+  .card h3 { margin: 0 0 14px; font-size: 14px; font-weight: 600; color: var(--text); }
+  .step-num { background: #fff; color: #000; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 8px; font-weight: 500; }
+  select, input[type="text"], input[type="password"], input[type="number"], textarea {
+    background: #141414; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; font-size: 13px; font-family: inherit;
+    outline: none; transition: all 0.2s; width: 100%;
+  }
+  select:focus, input:focus, textarea:focus { border-color: #fff; background: #1a1a1a; }
+  textarea { resize: vertical; min-height: 80px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  button { background: #fff; color: #000; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+  button:hover:not(:disabled) { background: #e5e5e5; transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { background: #262626; color: #525252; cursor: not-allowed; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  button.secondary:hover:not(:disabled) { border-color: #fff; background: rgba(255,255,255,0.05); }
+  button.big { padding: 14px 24px; font-size: 15px; font-weight: 700; }
+  .status { font-size: 12px; padding: 5px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: 500; }
+  .status.ok { background: rgba(16,185,129,0.15); color: var(--ok); }
+  .status.warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .status.err { background: rgba(239,68,68,0.15); color: var(--err); }
+  .status.idle { background: #141414; color: var(--muted); }
+  .status.run { background: rgba(255,255,255,0.1); color: var(--text); animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* === Dropzone (이미지 업로드 영역) === */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    color: var(--muted);
+    font-size: 14px;
+    background: #0a0a0a;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: #fff;
+    background: #141414;
+    color: var(--text);
+  }
+  .dropzone img {
+    max-width: 100%;
+    max-height: 220px;
+    border-radius: 8px;
+  }
+
+  /* === 3D Viewer (Three.js 캔버스 컨테이너) === */
+  #viewer {
+    width: 100%;
+    height: 460px;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  #viewer canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 12px;
+  }
+
+  .pipeline-vis {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; padding: 20px 24px;
+    font-size: 13px; color: var(--muted); flex-wrap: wrap;
+    background: #0a0a0a; border-radius: 12px; border: 1px solid var(--border);
+  }
+  .pipeline-vis .step-box {
+    padding: 10px 16px;
+    background: #141414; border: 1px solid #262626; border-radius: 8px;
+    font-weight: 500; color: var(--text);
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .pipeline-vis .step-box:hover { border-color: #fff; background: #1a1a1a; }
+  .pipeline-vis .arrow { color: #525252; font-weight: 700; font-size: 16px; }
+  .log { background: #000; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; max-height: 280px; overflow-y: auto; color: #a3a3a3; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+  .log .info { color: #e5e5e5; font-weight: 500; }
+  .log .ok { color: var(--ok); font-weight: 500; }
+  .log .err { color: var(--err); font-weight: 500; }
+  .log .warn { color: var(--warn); font-weight: 500; }
+  .log .stage { color: #fff; font-weight: 700; }
+  .hidden { display: none !important; }
+  .badge { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; background: #141414; border: 1px solid var(--border); padding: 3px 7px; border-radius: 4px; color: var(--muted); font-weight: 600; }
+  .meta-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #141414; border-radius: 8px; font-size: 12px; margin-top: 8px; border: 1px solid var(--border); }
+  .meta-row span:first-child { color: var(--muted); font-weight: 500; }
+  .meta-row span:last-child { color: var(--text); font-weight: 600; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  details { margin-top: 12px; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; font-weight: 500; padding: 8px; border-radius: 6px; transition: all 0.2s; }
+  details summary:hover { background: #141414; color: var(--text); }
+  details pre { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; max-height: 240px; overflow: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: #a3a3a3; }
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; background: #141414; border: 1px solid var(--border); color: var(--muted); font-weight: 500; }
+  a.download { display: inline-flex; align-items: center; gap: 8px; background: #fff; color: #000; padding: 11px 18px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+  a.download:hover { background: #e5e5e5; transform: translateY(-1px); }
+  .stage-track { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+  .stage-card { background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; transition: all 0.3s; display: flex; flex-direction: column; min-height: 92px; }
+  .stage-card.active { border-color: #fff; background: #141414; }
+  .stage-card.done { border-color: var(--ok); background: rgba(16,185,129,0.05); }
+  .stage-card.err { border-color: var(--err); background: rgba(239,68,68,0.05); }
+  .stage-card .name {
+    font-size: 13px; font-weight: 700;
+    margin-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--text);
+    gap: 8px;
+  }
+  .stage-card .name > span:first-child {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .stage-card .name > .status {
+    flex-shrink: 0;
+    max-width: 50%;
+    justify-content: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stage-card .desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: auto; }
+  @media (max-width: 720px) { .stage-track { grid-template-columns: 1fr; } }
+  .conn-panel { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: #0a0a0a; transition: all 0.3s; }
+  .conn-panel:hover { border-color: #404040; }
+  .conn-panel .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .small { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  .small a { color: var(--text) !important; }
+  .switch { display: inline-flex; background: #141414; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .switch button { background: transparent; color: var(--muted); padding: 7px 14px; border-radius: 0; font-weight: 500; transition: all 0.2s; }
+  .switch button:hover:not(.on) { background: transparent; color: var(--text); transform: none; }
+  .switch button.on { background: #fff; color: #000; }
+
+  /* === File slots (OBJ mode) === */
+  .file-slots {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .file-slot {
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: all 0.2s;
+  }
+  .file-slot.filled { border-color: var(--ok); background: rgba(16,185,129,0.04); }
+  .file-slot.missing-required { border-color: var(--err); background: rgba(239,68,68,0.04); }
+  .slot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .slot-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .slot-icon { font-size: 14px; }
+  .req { font-size: 10px; padding: 2px 6px; background: rgba(239,68,68,0.15); color: var(--err); border-radius: 4px; font-weight: 600; margin-left: 4px; }
+  .opt { font-size: 10px; padding: 2px 6px; background: #141414; color: var(--muted); border-radius: 4px; font-weight: 500; margin-left: 4px; }
+  .slot-status {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+  .file-slot.filled .slot-status { color: var(--ok); font-weight: 600; }
+  .slot-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .slot-filename {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .file-slot.filled .slot-filename { color: var(--text); }
+  .slot-btn { padding: 6px 12px !important; font-size: 12px !important; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hero-inner">
+    <div class="hero-tag">
+      <span class="live-dot"></span>
+      <span>v2.0 · Multi-Modal 3D Pipeline</span>
+    </div>
+    <h1>From a single image<br/>to <span class="accent">production-ready</span> 3D.</h1>
+    <p>한 장의 이미지로 시작하는 완벽한 3D 워크플로우. <b>AI 기반 뷰 생성</b> → <b>메쉬 재구성</b> → <b>Rhino 변환</b> 모두 한 곳에서.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="v">3</div>
+        <div class="l">Input Modes</div>
+      </div>
+      <div class="hero-stat">
+        <div class="v">6+</div>
+        <div class="l">AI Models</div>
+      </div>
+      <div class="hero-stat">
+        <div class="v">.3dm</div>
+        <div class="l">Native Output</div>
+      </div>
+      <div class="hero-stat">
+        <div class="v">100%</div>
+        <div class="l">Browser-side</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Pipeline visualization -->
+  <div class="pipeline-vis">
+    <span class="step-box">이미지 입력</span>
+    <span class="arrow">→</span>
+    <span class="step-box">(A) LLM 분석 · 치수 추정</span>
+    <span class="arrow">→</span>
+    <span class="step-box">(B) Image-to-3D · GLB</span>
+    <span class="arrow">→</span>
+    <span class="step-box">(C) Mesh → rhino3dm</span>
+    <span class="arrow">→</span>
+    <span class="step-box">.3dm 다운로드</span>
+  </div>
+
+  <!-- STEP 1: API connections -->
+  <section class="card">
+    <h2><span class="step-num">1</span>API 연결</h2>
+    <div class="grid-2">
+
+      <!-- LLM provider -->
+      <div class="conn-panel">
+        <div class="head"><h3>Vision LLM <span class="badge">선택</span></h3>
+          <span id="llmStatus" class="status idle"><span class="dot"></span>미연결</span></div>
+        <div class="grid-2" style="gap:10px;">
+          <div>
+            <label>Provider</label>
+            <select id="llmProvider">
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI (GPT)</option>
+              <option value="gemini">Google (Gemini)</option>
+            </select>
+          </div>
+          <div>
+            <label>Model</label>
+            <select id="llmModel"></select>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label>API Key</label>
+          <input id="llmKey" type="password" placeholder="sk-ant-... / sk-... / AIza..." />
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="btnTestLlm">테스트</button>
+          <button class="secondary" id="btnSaveLlm">저장</button>
+          <button class="secondary" id="btnClearLlm">지우기</button>
+        </div>
+        <div class="small">이미지에서 카테고리와 실제 치수(mm)를 추정하여 메쉬 스케일링에 사용합니다.</div>
+      </div>
+
+      <!-- Image-to-3D provider -->
+      <div class="conn-panel">
+        <div class="head"><h3>Image → 3D 모델 <span class="badge">필수</span></h3>
+          <span id="meshStatus" class="status idle"><span class="dot"></span>미연결</span></div>
+        <div>
+          <label>모델</label>
+          <select id="meshModel">
+            <option value="local-server">🖥 Local server (WSL/로컬 GPU) — 무료</option>
+            <option value="fal-triposr">fal.ai · TripoSR (빠름, 단일이미지)</option>
+            <option value="fal-trellis">fal.ai · TRELLIS (고품질)</option>
+            <option value="fal-hunyuan3d">fal.ai · Hunyuan3D 2.1</option>
+            <option value="fal-hyper3d">fal.ai · Hyper3D Rodin</option>
+            <option value="fal-tripo3d">fal.ai · Tripo3D</option>
+          </select>
+        </div>
+
+        <!-- fal.ai key field -->
+        <div id="meshKeyWrap" class="hidden" style="margin-top:10px;">
+          <label>fal.ai API Key</label>
+          <input id="meshKey" type="password" placeholder="xxxxxxxx-xxxx-xxxx-..." />
+        </div>
+
+        <!-- Local server URL field -->
+        <div id="meshUrlWrap" style="margin-top:10px;">
+          <label>로컬 서버 엔드포인트</label>
+          <input id="meshUrl" type="text" value="http://localhost:7860/generate" />
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <button id="btnTestMesh">테스트</button>
+          <button class="secondary" id="btnSaveMesh">저장</button>
+          <button class="secondary" id="btnClearMesh">지우기</button>
+        </div>
+        <div class="small" id="meshHelp">
+          로컬: WSL에서 <code>python local_server.py</code> 실행 (TripoSR/InstantMesh).<br/>
+          fal.ai 키 발급: <a href="https://fal.ai/dashboard/keys" target="_blank" style="color:var(--accent)">fal.ai/dashboard/keys</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- STEP 2: Input -->
+  <section class="card">
+    <h2><span class="step-num">2</span>입력</h2>
+    <div class="grid-2">
+      <div>
+
+        <!-- IMAGE dropzone (image / text modes) -->
+        <div id="imageDropzoneWrap">
+          <label>이미지 (Image→3D 모드 필수)</label>
+          <div class="dropzone" id="dropzone">
+            <div id="dropzoneText">
+              클릭 또는 드래그&드롭<br/>
+              <span style="font-size:11px;">단일 객체, 배경 단순한 사진이 가장 좋습니다.</span>
+            </div>
+            <img id="preview" class="hidden" alt="preview" />
+          </div>
+          <input type="file" id="fileInput" accept="image/*" class="hidden" />
+          <div class="row" style="margin-top:8px;">
+            <button class="secondary" id="btnClearImg">이미지 제거</button>
+            <span id="imgInfo" class="pill">선택된 파일 없음</span>
+          </div>
+        </div>
+
+        <!-- OBJ/GLB direct upload (obj mode) -->
+        <div id="objDropzoneWrap" class="hidden">
+          <label>메쉬 + 텍스처 직접 업로드</label>
+          <div class="dropzone" id="objDropzone">
+            <div id="objDropzoneText">
+              <div style="font-size:32px; margin-bottom:8px;">📂</div>
+              <div style="font-weight:600; color:var(--text); margin-bottom:4px;">파일을 여기에 드래그하거나 클릭해서 선택</div>
+              <span style="font-size:12px;">.obj + .mtl + 텍스처(.png/.jpg) 한 번에 선택 가능 · .glb / .gltf / .ply 도 OK</span>
+            </div>
+            <div id="objDropzoneLoaded" class="hidden" style="color:var(--ok); font-weight:500;">
+              <div style="font-size:28px; margin-bottom:6px;">✓</div>
+              <div id="objLoadedName"></div>
+            </div>
+          </div>
+          <input type="file" id="objFileInput" accept=".obj,.glb,.gltf,.ply,.mtl,.png,.jpg,.jpeg,.webp" class="hidden" multiple />
+
+          <!-- Explicit file slots — 각 슬롯별로 상태가 명확하게 보임 -->
+          <div class="file-slots">
+            <div class="file-slot" id="slotMesh" data-slot="mesh">
+              <div class="slot-head">
+                <span class="slot-label"><span class="slot-icon">🧊</span> Mesh <span class="req">필수</span></span>
+                <span class="slot-status" id="slotMeshStatus">없음</span>
+              </div>
+              <div class="slot-body">
+                <span class="slot-filename" id="slotMeshName">.obj / .glb / .gltf / .ply</span>
+                <button class="secondary slot-btn" type="button" data-accept=".obj,.glb,.gltf,.ply" data-target="mesh">파일 선택</button>
+              </div>
+            </div>
+
+            <div class="file-slot" id="slotMtl" data-slot="mtl">
+              <div class="slot-head">
+                <span class="slot-label"><span class="slot-icon">🎨</span> Material <span class="opt">선택</span></span>
+                <span class="slot-status" id="slotMtlStatus">없음</span>
+              </div>
+              <div class="slot-body">
+                <span class="slot-filename" id="slotMtlName">.mtl</span>
+                <button class="secondary slot-btn" type="button" data-accept=".mtl" data-target="mtl">파일 선택</button>
+              </div>
+            </div>
+
+            <div class="file-slot" id="slotTex" data-slot="tex">
+              <div class="slot-head">
+                <span class="slot-label"><span class="slot-icon">🖼</span> Texture <span class="opt">선택</span></span>
+                <span class="slot-status" id="slotTexStatus">없음</span>
+              </div>
+              <div class="slot-body">
+                <span class="slot-filename" id="slotTexName">.png / .jpg / .webp (여러 개 가능)</span>
+                <button class="secondary slot-btn" type="button" data-accept=".png,.jpg,.jpeg,.webp" data-target="tex" data-multiple="true">파일 선택</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <button class="secondary" id="btnClearObj">전체 초기화</button>
+            <span id="objInfo" class="pill">선택된 파일 없음</span>
+          </div>
+          <input type="file" id="slotPicker" class="hidden" />
+        </div>
+
+      </div>
+      <div>
+        <label>설명 / 프롬프트 (선택)</label>
+        <textarea id="userPrompt" rows="4" placeholder="예) 크록스 신발, 실제 길이 약 280mm. / 빈티지 의자, 좌석 높이 450mm."></textarea>
+
+        <div class="grid-3" style="margin-top:10px;">
+          <div>
+            <label>모드</label>
+            <div class="switch" id="modeSwitch">
+              <button data-mode="image" class="on">Image→3D</button>
+              <button data-mode="obj">OBJ 직접</button>
+              <button data-mode="text">Text→Curves</button>
+            </div>
+          </div>
+          <div>
+            <label>스케일 (mm)</label>
+            <input id="manualScale" type="number" min="1" step="1" placeholder="auto" />
+          </div>
+          <div>
+            <label>축 회전 보정</label>
+            <select id="axisFix">
+              <option value="none">없음</option>
+              <option value="x-90" selected>Z-up (X축 -90°)</option>
+              <option value="x90">X축 +90°</option>
+              <option value="y180">Y축 180°</option>
+            </select>
+          </div>
+        </div>
+
+        <details open style="margin-top:14px; background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:10px;">
+          <summary style="color:var(--text); font-weight:500; font-size:13px;">⚙ 메쉬 최적화 옵션</summary>
+          <div class="grid-3" style="margin-top:10px;">
+            <div>
+              <label>최대 face 수</label>
+              <input id="targetFaces" type="number" min="100" step="500" value="5000" />
+            </div>
+            <div>
+              <label>vertex 병합 거리</label>
+              <input id="mergeTol" type="number" min="0" step="0.0001" value="0.0001" />
+            </div>
+            <div>
+              <label>적용</label>
+              <select id="optMode">
+                <option value="auto" selected>자동 (초과시만)</option>
+                <option value="force">강제 감소</option>
+                <option value="merge-only">병합만</option>
+                <option value="off">끔</option>
+              </select>
+            </div>
+          </div>
+          <div class="small" style="margin-top:6px;">
+            InstantMesh 출력은 보통 50k~150k face. Rhino에서 작업하려면 5k~20k 정도로 줄이는 게 좋습니다.
+          </div>
+        </details>
+
+        <div class="row" style="margin-top:14px; justify-content:flex-end;">
+          <button id="btnRun" class="big" disabled>▶ 실행</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: Pipeline stages -->
+  <section class="card">
+    <h2><span class="step-num">3</span>처리 파이프라인</h2>
+    <div class="stage-track">
+      <div class="stage-card" id="stageA">
+        <div class="name">A · LLM 분석 <span class="status idle">대기</span></div>
+        <div class="desc">이미지에서 카테고리·치수·자세를 추정</div>
+      </div>
+      <div class="stage-card" id="stageB">
+        <div class="name">B · Image → 3D Mesh <span class="status idle">대기</span></div>
+        <div class="desc">InstantMesh/TripoSR로 GLB 생성</div>
+      </div>
+      <div class="stage-card" id="stageC">
+        <div class="name">C · Mesh → Rhino <span class="status idle">대기</span></div>
+        <div class="desc">rhino3dm.Mesh 변환 + 스케일링 + .3dm</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 4: Output -->
+  <section class="card">
+    <h2><span class="step-num">4</span>출력</h2>
+    <div class="grid-2">
+      <div>
+        <label>3D 미리보기</label>
+        <div id="viewer"></div>
+        <div class="meta-row"><span>버텍스 / 페이스</span><span id="meshStats">—</span></div>
+        <div class="meta-row"><span>바운딩 박스 (mm)</span><span id="bbox">—</span></div>
+      </div>
+      <div>
+        <label>처리 로그</label>
+        <div class="log" id="log"></div>
+        <div class="row" style="margin-top:12px;">
+          <a id="downloadLink" class="download hidden" download="output.3dm" href="#">⬇ .3dm 다운로드</a>
+          <a id="downloadGlb" class="download hidden" download="output.glb" href="#" style="background:var(--accent-2);">⬇ .glb 원본</a>
+        </div>
+        <details>
+          <summary>LLM 분석 결과</summary>
+          <pre id="llmAnalysis">—</pre>
+        </details>
+        <details>
+          <summary>fal.ai 응답</summary>
+          <pre id="meshResp">—</pre>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/modifiers/SimplifyModifier.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/rhino3dm@8.4.0/rhino3dm.min.js"></script>
+
+<script>
+/* =========== OrbitControls (inlined, r128 compatible) =========== */
+THREE.OrbitControls = function (object, domElement) {
+  this.object = object; this.domElement = domElement; this.enabled = true;
+  this.target = new THREE.Vector3(); this.minDistance = 0; this.maxDistance = Infinity;
+  this.enableDamping = true; this.dampingFactor = 0.08;
+  this.rotateSpeed = 1.0; this.zoomSpeed = 1.0; this.panSpeed = 1.0;
+  var scope = this;
+  var STATE = { NONE: -1, ROTATE: 0, DOLLY: 1, PAN: 2 };
+  var state = STATE.NONE; var EPS = 0.000001;
+  var spherical = new THREE.Spherical(); var sphericalDelta = new THREE.Spherical();
+  var scale = 1; var panOffset = new THREE.Vector3();
+  var rotateStart = new THREE.Vector2(); var rotateEnd = new THREE.Vector2(); var rotateDelta = new THREE.Vector2();
+  var panStart = new THREE.Vector2(); var panEnd = new THREE.Vector2(); var panDelta = new THREE.Vector2();
+  var dollyStart = new THREE.Vector2(); var dollyEnd = new THREE.Vector2(); var dollyDelta = new THREE.Vector2();
+  this.update = function () {
+    var offset = new THREE.Vector3();
+    var quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0,1,0));
+    var quatInverse = quat.clone().invert();
+    var position = scope.object.position;
+    offset.copy(position).sub(scope.target);
+    offset.applyQuaternion(quat);
+    spherical.setFromVector3(offset);
+    spherical.theta += sphericalDelta.theta;
+    spherical.phi += sphericalDelta.phi;
+    spherical.phi = Math.max(EPS, Math.min(Math.PI - EPS, spherical.phi));
+    spherical.radius *= scale;
+    spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
+    scope.target.add(panOffset);
+    offset.setFromSpherical(spherical);
+    offset.applyQuaternion(quatInverse);
+    position.copy(scope.target).add(offset);
+    scope.object.lookAt(scope.target);
+    if (scope.enableDamping) {
+      sphericalDelta.theta *= (1 - scope.dampingFactor);
+      sphericalDelta.phi *= (1 - scope.dampingFactor);
+      panOffset.multiplyScalar(1 - scope.dampingFactor);
+    } else { sphericalDelta.set(0,0,0); panOffset.set(0,0,0); }
+    scale = 1; return true;
+  };
+  function onMouseDown(e) {
+    if (e.button === 0) { state = STATE.ROTATE; rotateStart.set(e.clientX, e.clientY); }
+    else if (e.button === 1) { state = STATE.DOLLY; dollyStart.set(e.clientX, e.clientY); }
+    else if (e.button === 2) { state = STATE.PAN; panStart.set(e.clientX, e.clientY); }
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+  function onMouseMove(e) {
+    if (state === STATE.ROTATE) {
+      rotateEnd.set(e.clientX, e.clientY);
+      rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+      sphericalDelta.theta -= 2 * Math.PI * rotateDelta.x / domElement.clientHeight;
+      sphericalDelta.phi -= 2 * Math.PI * rotateDelta.y / domElement.clientHeight;
+      rotateStart.copy(rotateEnd);
+    } else if (state === STATE.PAN) {
+      panEnd.set(e.clientX, e.clientY);
+      panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+      var offset = new THREE.Vector3().subVectors(scope.object.position, scope.target);
+      var targetDistance = offset.length() * Math.tan((scope.object.fov/2) * Math.PI/180);
+      var v = new THREE.Vector3();
+      v.setFromMatrixColumn(scope.object.matrix, 0).multiplyScalar(-2 * panDelta.x * targetDistance / domElement.clientHeight);
+      panOffset.add(v);
+      v.setFromMatrixColumn(scope.object.matrix, 1).multiplyScalar(2 * panDelta.y * targetDistance / domElement.clientHeight);
+      panOffset.add(v);
+      panStart.copy(panEnd);
+    } else if (state === STATE.DOLLY) {
+      dollyEnd.set(e.clientX, e.clientY);
+      dollyDelta.subVectors(dollyEnd, dollyStart);
+      if (dollyDelta.y > 0) scale /= Math.pow(0.95, scope.zoomSpeed);
+      else if (dollyDelta.y < 0) scale *= Math.pow(0.95, scope.zoomSpeed);
+      dollyStart.copy(dollyEnd);
+    }
+  }
+  function onMouseUp() {
+    state = STATE.NONE;
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  }
+  function onWheel(e) {
+    e.preventDefault();
+    if (e.deltaY < 0) scale *= Math.pow(0.95, scope.zoomSpeed);
+    else scale /= Math.pow(0.95, scope.zoomSpeed);
+  }
+  domElement.addEventListener('mousedown', onMouseDown);
+  domElement.addEventListener('wheel', onWheel, { passive: false });
+  domElement.addEventListener('contextmenu', e => e.preventDefault());
+};
+
+/* =========== Globals =========== */
+let rhino = null;
+let scene, camera, renderer, controls, objectsGroup;
+let currentImage = null;
+let currentObjFile = null;
+let currentBundle = { meshFile: null, mtlFile: null, textureFiles: [] };
+let lastGlbBlob = null, lastDmBlob = null;
+let lastAnalysis = null;
+let mode = 'image';
+
+/* =========== Logging =========== */
+const logEl = document.getElementById('log');
+function log(msg, type='info') {
+  const ts = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.className = type;
+  line.textContent = `[${ts}] ${msg}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+/* =========== Stage UI helpers =========== */
+function setStage(id, state, label) {
+  const el = document.getElementById(id);
+  el.classList.remove('active','done','err');
+  const badge = el.querySelector('.status');
+  badge.className = 'status ' + (state==='active'?'run':state==='done'?'ok':state==='err'?'err':'idle');
+  badge.textContent = label || ({active:'진행중',done:'완료',err:'실패',idle:'대기'})[state];
+  if (state==='active') el.classList.add('active');
+  if (state==='done') el.classList.add('done');
+  if (state==='err') el.classList.add('err');
+}
+function resetStages() {
+  ['stageA','stageB','stageC'].forEach(id => setStage(id,'idle','대기'));
+}
+
+/* =========== Model lists =========== */
+const LLM_MODELS = {
+  anthropic: [
+    { v:'claude-opus-4-6', t:'Claude Opus 4.6 (vision)' },
+    { v:'claude-sonnet-4-6', t:'Claude Sonnet 4.6 (vision)' },
+    { v:'claude-haiku-4-5-20251001', t:'Claude Haiku 4.5 (vision)' }
+  ],
+  openai: [
+    { v:'gpt-4o', t:'GPT-4o (vision)' },
+    { v:'gpt-4o-mini', t:'GPT-4o mini (vision)' }
+  ],
+  gemini: [
+    { v:'gemini-2.5-pro', t:'Gemini 2.5 Pro (vision)' },
+    { v:'gemini-2.5-flash', t:'Gemini 2.5 Flash (vision)' },
+    { v:'gemini-2.0-flash', t:'Gemini 2.0 Flash (vision)' }
+  ]
+};
+
+const llmProviderEl = document.getElementById('llmProvider');
+const llmModelEl = document.getElementById('llmModel');
+const llmKeyEl = document.getElementById('llmKey');
+const meshModelEl = document.getElementById('meshModel');
+const meshKeyEl = document.getElementById('meshKey');
+
+function refreshLlmModels() {
+  const p = llmProviderEl.value;
+  llmModelEl.innerHTML = '';
+  LLM_MODELS[p].forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.v; o.textContent = m.t;
+    llmModelEl.appendChild(o);
+  });
+  llmKeyEl.value = localStorage.getItem('llmKey_'+p) || '';
+  setConnStatus('llmStatus', 'idle', '미연결');
+}
+llmProviderEl.addEventListener('change', refreshLlmModels);
+refreshLlmModels();
+
+meshKeyEl.value = localStorage.getItem('falKey') || '';
+const meshUrlEl = document.getElementById('meshUrl');
+meshUrlEl.value = localStorage.getItem('meshUrl') || 'http://localhost:7860/generate';
+
+// Toggle UI based on selected mesh provider
+function refreshMeshUI() {
+  const isLocal = meshModelEl.value === 'local-server';
+  document.getElementById('meshKeyWrap').classList.toggle('hidden', isLocal);
+  document.getElementById('meshUrlWrap').classList.toggle('hidden', !isLocal);
+  // For local mode we don't need a key — show ready state if URL is set
+  if (isLocal) {
+    setConnStatus('meshStatus', meshUrlEl.value ? 'ok' : 'idle', meshUrlEl.value ? '로컬 준비' : 'URL 필요');
+  } else {
+    setConnStatus('meshStatus', meshKeyEl.value ? 'idle' : 'idle', meshKeyEl.value ? '키 입력됨, 테스트 권장' : '미연결');
+  }
+}
+meshModelEl.addEventListener('change', refreshMeshUI);
+meshUrlEl.addEventListener('input', () => {
+  if (meshModelEl.value === 'local-server') refreshMeshUI();
+});
+// Initial state
+setTimeout(refreshMeshUI, 0);
+
+function setConnStatus(id, kind, msg) {
+  const el = document.getElementById(id);
+  el.className = 'status ' + kind;
+  el.innerHTML = `<span class="dot"></span>${msg}`;
+  updateRunButton();
+}
+
+function updateRunButton() {
+  const llmOk = document.getElementById('llmStatus').classList.contains('ok');
+  const meshOk = document.getElementById('meshStatus').classList.contains('ok');
+  const isLocal = document.getElementById('meshModel').value === 'local-server';
+  const localUrlSet = !!document.getElementById('meshUrl').value.trim();
+  const runBtn = document.getElementById('btnRun');
+  if (mode === 'image') {
+    runBtn.disabled = !(meshOk || (isLocal && localUrlSet));
+  } else if (mode === 'obj') {
+    // OBJ direct: only requires uploaded mesh file, no API needed
+    runBtn.disabled = !currentBundle.meshFile;
+  } else {
+    runBtn.disabled = !llmOk;
+  }
+}
+
+/* =========== Save / Clear keys =========== */
+document.getElementById('btnSaveLlm').addEventListener('click', () => {
+  localStorage.setItem('llmKey_'+llmProviderEl.value, llmKeyEl.value);
+  log('LLM API 키 저장', 'ok');
+});
+document.getElementById('btnClearLlm').addEventListener('click', () => {
+  llmKeyEl.value = '';
+  localStorage.removeItem('llmKey_'+llmProviderEl.value);
+  setConnStatus('llmStatus','idle','미연결');
+  log('LLM 키 삭제', 'warn');
+});
+document.getElementById('btnSaveMesh').addEventListener('click', () => {
+  if (meshModelEl.value === 'local-server') {
+    localStorage.setItem('meshUrl', meshUrlEl.value);
+    log('로컬 엔드포인트 저장: ' + meshUrlEl.value, 'ok');
+  } else {
+    localStorage.setItem('falKey', meshKeyEl.value);
+    log('fal.ai 키 저장', 'ok');
+  }
+});
+document.getElementById('btnClearMesh').addEventListener('click', () => {
+  if (meshModelEl.value === 'local-server') {
+    meshUrlEl.value = '';
+    localStorage.removeItem('meshUrl');
+    setConnStatus('meshStatus','idle','URL 필요');
+    log('로컬 URL 삭제', 'warn');
+  } else {
+    meshKeyEl.value = '';
+    localStorage.removeItem('falKey');
+    setConnStatus('meshStatus','idle','미연결');
+    log('fal.ai 키 삭제', 'warn');
+  }
+});
+
+/* =========== Mode switch =========== */
+document.getElementById('modeSwitch').addEventListener('click', e => {
+  const b = e.target.closest('button[data-mode]'); if (!b) return;
+  document.querySelectorAll('#modeSwitch button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  mode = b.dataset.mode;
+  document.getElementById('imageDropzoneWrap').classList.toggle('hidden', mode === 'obj');
+  document.getElementById('objDropzoneWrap').classList.toggle('hidden', mode !== 'obj');
+  const labels = { image:'Image → 3D Mesh', obj:'OBJ 직접 → Rhino', text:'Text → Curves' };
+  log(`모드 변경: ${labels[mode]}`);
+  updateRunButton();
+});
+
+/* =========== Test connections =========== */
+document.getElementById('btnTestLlm').addEventListener('click', async () => {
+  const provider = llmProviderEl.value;
+  const key = llmKeyEl.value.trim();
+  const model = llmModelEl.value;
+  if (!key) { setConnStatus('llmStatus','err','API 키 없음'); return; }
+  setConnStatus('llmStatus','warn','테스트 중...');
+  try {
+    const text = await callLLM(provider, key, model, 'Reply OK', null);
+    if (text) { setConnStatus('llmStatus','ok','연결됨'); log(`LLM 연결 OK: ${provider}`, 'ok'); localStorage.setItem('llmKey_'+provider, key); }
+    else { setConnStatus('llmStatus','err','응답 없음'); }
+  } catch (e) {
+    setConnStatus('llmStatus','err','에러');
+    log('LLM 에러: ' + e.message, 'err');
+  }
+});
+
+document.getElementById('btnTestMesh').addEventListener('click', async () => {
+  // Local-server test
+  if (meshModelEl.value === 'local-server') {
+    const url = meshUrlEl.value.trim();
+    if (!url) { setConnStatus('meshStatus','err','URL 없음'); return; }
+    setConnStatus('meshStatus','warn','로컬 서버 확인...');
+    try {
+      // Try /health endpoint first, fall back to GET on root
+      const base = url.replace(/\/generate\/?$/,'');
+      let r = await fetch(base + '/health', { method: 'GET' }).catch(()=>null);
+      if (!r || !r.ok) r = await fetch(base, { method: 'GET' }).catch(()=>null);
+      if (r && r.ok) {
+        setConnStatus('meshStatus','ok','로컬 서버 OK');
+        log('로컬 서버 응답 OK', 'ok');
+        localStorage.setItem('meshUrl', url);
+      } else {
+        setConnStatus('meshStatus','warn','응답 없음 (서버 미실행?)');
+        log('로컬 서버에 도달 못함. python local_server.py 실행 확인.', 'warn');
+      }
+    } catch (e) {
+      setConnStatus('meshStatus','err','연결 실패');
+      log('로컬 서버 에러: ' + e.message, 'err');
+    }
+    return;
+  }
+  // fal.ai test
+  const key = meshKeyEl.value.trim();
+  if (!key) { setConnStatus('meshStatus','err','API 키 없음'); return; }
+  setConnStatus('meshStatus','warn','테스트 중...');
+  try {
+    const r = await fetch('https://rest.alpha.fal.ai/user/me', { headers: { 'Authorization': 'Key ' + key }});
+    if (r.ok) {
+      setConnStatus('meshStatus','ok','연결됨');
+      log('fal.ai 연결 OK', 'ok');
+      localStorage.setItem('falKey', key);
+    } else if (r.status === 401) {
+      setConnStatus('meshStatus','err','키 무효');
+    } else {
+      setConnStatus('meshStatus','ok','키 입력됨');
+      localStorage.setItem('falKey', key);
+    }
+  } catch (e) {
+    setConnStatus('meshStatus','ok','키 입력됨');
+    log('fal.ai 사전점검 스킵: ' + e.message, 'warn');
+    localStorage.setItem('falKey', key);
+  }
+});
+
+/* =========== LLM unified call =========== */
+async function callLLM(provider, key, model, prompt, imageB64) {
+  if (provider === 'anthropic') {
+    const body = {
+      model, max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: imageB64 ? [
+          { type: 'image', source: { type:'base64', media_type: imageB64.mime, data: imageB64.data } },
+          { type: 'text', text: prompt }
+        ] : prompt
+      }]
+    };
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type':'application/json',
+        'x-api-key': key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(`Anthropic ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return j.content.map(c => c.text||'').join('\n');
+  }
+  if (provider === 'openai') {
+    const content = imageB64
+      ? [{ type:'text', text: prompt }, { type:'image_url', image_url: { url: `data:${imageB64.mime};base64,${imageB64.data}` }}]
+      : prompt;
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type':'application/json', 'authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model, max_tokens: 2048, messages: [{ role:'user', content }] })
+    });
+    if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return j.choices[0].message.content;
+  }
+  if (provider === 'gemini') {
+    const parts = [{ text: prompt }];
+    if (imageB64) parts.unshift({ inline_data: { mime_type: imageB64.mime, data: imageB64.data }});
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'content-type':'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] })
+    });
+    if (!r.ok) throw new Error(`Gemini ${r.status}: ${await r.text()}`);
+    const j = await r.json();
+    return j.candidates[0].content.parts.map(p => p.text||'').join('\n');
+  }
+}
+
+/* =========== Image upload =========== */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const previewImg = document.getElementById('preview');
+const dropzoneText = document.getElementById('dropzoneText');
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+document.getElementById('btnClearImg').addEventListener('click', () => {
+  currentImage = null;
+  previewImg.classList.add('hidden');
+  dropzoneText.classList.remove('hidden');
+  document.getElementById('imgInfo').textContent = '선택된 파일 없음';
+});
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    const base64 = dataUrl.split(',')[1];
+    currentImage = { mime: file.type, data: base64, name: file.name, dataUrl };
+    previewImg.src = dataUrl;
+    previewImg.classList.remove('hidden');
+    dropzoneText.classList.add('hidden');
+    document.getElementById('imgInfo').textContent = `${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    log(`이미지 로드: ${file.name}`);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* =========== OBJ/GLB/MTL/Texture direct upload =========== */
+const objDropzone = document.getElementById('objDropzone');
+const objFileInput = document.getElementById('objFileInput');
+const objDropzoneText = document.getElementById('objDropzoneText');
+const objDropzoneLoaded = document.getElementById('objDropzoneLoaded');
+const slotPicker = document.getElementById('slotPicker');
+
+// === Drag & drop on the big dropzone (still works for bulk drop) ===
+objDropzone.addEventListener('click', e => {
+  // 클릭으로 picker 열기 — 단, 슬롯 안의 버튼 클릭일 때는 무시
+  if (e.target.closest('.file-slot') || e.target.closest('.slot-btn')) return;
+  objFileInput.click();
+});
+objFileInput.addEventListener('change', e => handleObjFiles(Array.from(e.target.files)));
+['dragover','dragenter'].forEach(ev => objDropzone.addEventListener(ev, e => { e.preventDefault(); objDropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => objDropzone.addEventListener(ev, e => { e.preventDefault(); objDropzone.classList.remove('drag'); }));
+objDropzone.addEventListener('drop', e => { if (e.dataTransfer.files && e.dataTransfer.files.length) handleObjFiles(Array.from(e.dataTransfer.files)); });
+
+// === Per-slot "파일 선택" buttons ===
+// 각 슬롯의 버튼이 자기 타입에 맞는 picker를 띄움.
+let _slotPickerTarget = null;
+document.querySelectorAll('.slot-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation(); // dropzone 클릭 핸들러 막기
+    const accept = btn.dataset.accept || '';
+    const target = btn.dataset.target;
+    const multiple = btn.dataset.multiple === 'true';
+    _slotPickerTarget = target;
+    slotPicker.accept = accept;
+    slotPicker.multiple = multiple;
+    slotPicker.value = '';   // 같은 파일 다시 선택 가능하게
+    slotPicker.click();
+  });
+});
+slotPicker.addEventListener('change', e => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+  // 슬롯 타입별로 분배 (handleObjFiles와 동일한 분류 사용)
+  handleObjFiles(files);
+});
+
+document.getElementById('btnClearObj').addEventListener('click', () => {
+  currentObjFile = null;
+  currentBundle = { meshFile: null, mtlFile: null, textureFiles: [] };
+  objDropzoneText.classList.remove('hidden');
+  objDropzoneLoaded.classList.add('hidden');
+  document.getElementById('objInfo').textContent = '선택된 파일 없음';
+  refreshSlotsUI();
+  updateRunButton();
+});
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(2) + ' MB';
+}
+
+/**
+ * Update the three slot UIs based on currentBundle state.
+ * Called whenever files are added/removed.
+ */
+function refreshSlotsUI() {
+  // --- Mesh slot ---
+  const meshSlot = document.getElementById('slotMesh');
+  const meshStatus = document.getElementById('slotMeshStatus');
+  const meshName = document.getElementById('slotMeshName');
+  if (currentBundle.meshFile) {
+    meshSlot.classList.add('filled');
+    meshSlot.classList.remove('missing-required');
+    meshStatus.textContent = '✓ ' + fmtSize(currentBundle.meshFile.size);
+    meshName.textContent = currentBundle.meshFile.name;
+  } else {
+    meshSlot.classList.remove('filled');
+    meshStatus.textContent = '없음';
+    meshName.textContent = '.obj / .glb / .gltf / .ply';
+  }
+
+  // --- MTL slot ---
+  const mtlSlot = document.getElementById('slotMtl');
+  const mtlStatus = document.getElementById('slotMtlStatus');
+  const mtlName = document.getElementById('slotMtlName');
+  if (currentBundle.mtlFile) {
+    mtlSlot.classList.add('filled');
+    mtlStatus.textContent = '✓ ' + fmtSize(currentBundle.mtlFile.size);
+    mtlName.textContent = currentBundle.mtlFile.name;
+  } else {
+    mtlSlot.classList.remove('filled');
+    mtlStatus.textContent = '없음';
+    mtlName.textContent = '.mtl';
+  }
+
+  // --- Texture slot ---
+  const texSlot = document.getElementById('slotTex');
+  const texStatus = document.getElementById('slotTexStatus');
+  const texName = document.getElementById('slotTexName');
+  if (currentBundle.textureFiles.length) {
+    texSlot.classList.add('filled');
+    const total = currentBundle.textureFiles.reduce((s, f) => s + f.size, 0);
+    texStatus.textContent = `✓ ${currentBundle.textureFiles.length}개 · ${fmtSize(total)}`;
+    texName.textContent = currentBundle.textureFiles.map(f => f.name).join(', ');
+  } else {
+    texSlot.classList.remove('filled');
+    texStatus.textContent = '없음';
+    texName.textContent = '.png / .jpg / .webp (여러 개 가능)';
+  }
+
+  // Top dropzone summary
+  if (currentBundle.meshFile) {
+    document.getElementById('objLoadedName').textContent =
+      `${currentBundle.meshFile.name} · ${fmtSize(currentBundle.meshFile.size)}`;
+    objDropzoneText.classList.add('hidden');
+    objDropzoneLoaded.classList.remove('hidden');
+  } else {
+    objDropzoneText.classList.remove('hidden');
+    objDropzoneLoaded.classList.add('hidden');
+  }
+
+  // Compact info pill
+  const parts = [];
+  if (currentBundle.meshFile) parts.push(`mesh: ${currentBundle.meshFile.name}`);
+  if (currentBundle.mtlFile) parts.push(`mtl: ${currentBundle.mtlFile.name}`);
+  if (currentBundle.textureFiles.length) parts.push(`tex×${currentBundle.textureFiles.length}`);
+  document.getElementById('objInfo').textContent = parts.length ? parts.join(' · ') : '선택된 파일 없음';
+}
+
+function handleObjFiles(files) {
+  if (!files || !files.length) return;
+  let added = 0, skipped = [];
+  for (const file of files) {
+    const lower = file.name.toLowerCase();
+    if (/\.(obj|glb|gltf|ply)$/.test(lower)) {
+      currentBundle.meshFile = file;
+      currentObjFile = file;
+      added++;
+    } else if (lower.endsWith('.mtl')) {
+      currentBundle.mtlFile = file;
+      added++;
+    } else if (/\.(png|jpe?g|webp)$/.test(lower)) {
+      if (!currentBundle.textureFiles.some(f => f.name === file.name)) {
+        currentBundle.textureFiles.push(file);
+      }
+      added++;
+    } else {
+      skipped.push(file.name);
+    }
+  }
+  if (skipped.length) log(`지원하지 않는 파일 무시: ${skipped.join(', ')}`, 'warn');
+
+  refreshSlotsUI();
+  if (currentBundle.meshFile) {
+    log(`파일 추가: +${added} (mesh=${!!currentBundle.meshFile}, mtl=${!!currentBundle.mtlFile}, tex=${currentBundle.textureFiles.length})`, 'ok');
+  } else if (added > 0) {
+    log(`mtl/텍스처는 추가됨. mesh 파일(.obj/.glb)도 선택해주세요.`, 'warn');
+  }
+  updateRunButton();
+}
+
+// Initial state
+refreshSlotsUI();
+
+/* =========== LLM analysis prompt =========== */
+const ANALYSIS_PROMPT = `이 이미지의 객체를 분석해서 다음 JSON 형식으로만 답하세요 (코드블록 없이 JSON만).
+
+{
+  "category": "신발/의자/병/...",
+  "description": "한 문장 요약",
+  "estimated_size_mm": { "length": 280, "width": 100, "height": 110 },
+  "longest_axis": "length|width|height",
+  "longest_mm": 280,
+  "upright_axis_hint": "z|y",
+  "background_simple": true|false,
+  "single_object": true|false,
+  "confidence": 0.0~1.0
+}
+
+규칙:
+- 모든 치수는 mm 단위 정수.
+- 사람이 일반적으로 사용하는 실제 크기를 추정 (예: 성인 신발 ≈ 270mm).
+- 다른 텍스트 없이 JSON만.`;
+
+function parseJson(text) {
+  const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) { try { return JSON.parse(fence[1]); } catch {} }
+  try { return JSON.parse(text); } catch {}
+  const i = text.indexOf('{'), j = text.lastIndexOf('}');
+  if (i>=0 && j>i) { try { return JSON.parse(text.substring(i, j+1)); } catch {} }
+  return null;
+}
+
+/* =========== fal.ai image-to-3D =========== */
+const FAL_MODELS = {
+  'fal-triposr':     { id: 'fal-ai/triposr',           inputKey: 'image_url', outKey: 'output_mesh' },
+  'fal-trellis':     { id: 'fal-ai/trellis',           inputKey: 'image_url', outKey: 'model_mesh' },
+  'fal-hunyuan3d':   { id: 'fal-ai/hunyuan3d-v21',     inputKey: 'input_image_url', outKey: 'model_mesh' },
+  'fal-hyper3d':     { id: 'fal-ai/hyper3d/rodin',     inputKey: 'input_image_urls', outKey: 'model_mesh' },
+  'fal-tripo3d':     { id: 'fal-ai/tripo3d/tripo/v2.5/image-to-3d', inputKey: 'image_url', outKey: 'model_mesh' }
+};
+
+/* ---- LOCAL server image-to-3D ----
+ * POST {endpoint} with JSON { image_b64, image_mime }
+ * Response: JSON { mesh_url } or { model_mesh: { url } }  OR  binary GLB
+ */
+async function localImageTo3D(endpoint, imageDataUrl, onProgress) {
+  onProgress && onProgress('로컬 서버에 전송 중...');
+  const b64 = imageDataUrl.split(',')[1];
+  const mime = (imageDataUrl.match(/data:(.*?);/) || [,'image/png'])[1];
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image_b64: b64, image_mime: mime, output_format: 'glb' })
+  });
+  if (!res.ok) throw new Error('local '+res.status+': '+(await res.text()));
+
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('application/json')) {
+    const j = await res.json();
+    document.getElementById('meshResp').textContent = JSON.stringify(j, null, 2);
+    const base = endpoint.replace(/\/[^\/]+\/?$/, '');
+    const toAbs = u => u && u.startsWith('/') ? base + u : u;
+
+    // OBJ+MTL+텍스처 번들 응답 (InstantMesh 로컬 서버)
+    if (j.obj_url) {
+      return {
+        type: 'obj-bundle',
+        obj_url: toAbs(j.obj_url),
+        mtl_url: j.mtl_url ? toAbs(j.mtl_url) : null,
+        tex_url: j.tex_url ? toAbs(j.tex_url) : null,
+      };
+    }
+
+    // GLB URL 응답 (mock / triposr)
+    let u = j.mesh_url || j.url;
+    if (!u && j.model_mesh) u = (typeof j.model_mesh === 'string') ? j.model_mesh : j.model_mesh.url;
+    if (!u && j.glb_b64) {
+      const bin = Uint8Array.from(atob(j.glb_b64), c => c.charCodeAt(0));
+      const blob = new Blob([bin], { type: 'model/gltf-binary' });
+      return URL.createObjectURL(blob);
+    }
+    if (!u) throw new Error('local 응답에서 mesh URL 못 찾음');
+    return toAbs(u);
+  } else {
+    const blob = await res.blob();
+    document.getElementById('meshResp').textContent = `binary GLB (${(blob.size/1024).toFixed(1)} KB)`;
+    return URL.createObjectURL(blob);
+  }
+}
+
+async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
+  const cfg = FAL_MODELS[modelKey];
+  const endpoint = `https://queue.fal.run/${cfg.id}`;
+
+  // The fal.ai endpoint accepts image_url as data URL too
+  const inputPayload = {};
+  if (cfg.inputKey === 'input_image_urls') {
+    inputPayload[cfg.inputKey] = [imageDataUrl];
+  } else {
+    inputPayload[cfg.inputKey] = imageDataUrl;
+  }
+
+  // Submit
+  onProgress && onProgress('요청 제출 중...');
+  const subRes = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Authorization': 'Key ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(inputPayload)
+  });
+  if (!subRes.ok) throw new Error(`fal submit ${subRes.status}: ${await subRes.text()}`);
+  const sub = await subRes.json();
+  const reqId = sub.request_id;
+  if (!reqId) throw new Error('No request_id in fal response: ' + JSON.stringify(sub));
+
+  // Poll status
+  const statusUrl = `${endpoint}/requests/${reqId}/status`;
+  const resultUrl = `${endpoint}/requests/${reqId}`;
+  for (let attempt = 0; attempt < 240; attempt++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const sr = await fetch(statusUrl, { headers: { 'Authorization': 'Key ' + apiKey }});
+    if (!sr.ok) throw new Error(`status ${sr.status}: ${await sr.text()}`);
+    const st = await sr.json();
+    onProgress && onProgress(`${st.status} (${Math.floor((attempt+1)*2)}s)`);
+    if (st.status === 'COMPLETED') break;
+    if (st.status === 'FAILED' || st.status === 'ERROR') throw new Error('fal job failed: ' + JSON.stringify(st));
+  }
+
+  // Result
+  const rr = await fetch(resultUrl, { headers: { 'Authorization': 'Key ' + apiKey }});
+  if (!rr.ok) throw new Error(`result ${rr.status}: ${await rr.text()}`);
+  const result = await rr.json();
+  document.getElementById('meshResp').textContent = JSON.stringify(result, null, 2);
+
+  // Extract mesh URL — try common keys
+  let meshUrl = null;
+  const keys = [cfg.outKey, 'model_mesh', 'output_mesh', 'mesh', 'glb', 'mesh_url'];
+  for (const k of keys) {
+    if (result[k]) {
+      if (typeof result[k] === 'string') { meshUrl = result[k]; break; }
+      if (result[k].url) { meshUrl = result[k].url; break; }
+    }
+  }
+  // Deep dive
+  if (!meshUrl) {
+    const flat = JSON.stringify(result);
+    const m = flat.match(/https?:\/\/[^"]+\.(?:glb|obj|ply)\b[^"]*/i);
+    if (m) meshUrl = m[0];
+  }
+  if (!meshUrl) throw new Error('mesh URL을 응답에서 찾지 못함');
+  return meshUrl;
+}
+
+/* =========== GLB/OBJ loaders =========== */
+async function loadMesh(url) {
+  const lower = url.toLowerCase().split('?')[0];
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (e) {
+    // Most common cause here is CORS — fal.ai delivers GLB from a CDN
+    // (fal.media / fal-cdn / R2) whose CORS headers are not always
+    // permissive for browser fetches. Surface that explicitly.
+    throw new Error(
+      'mesh CDN 접근 실패 (CORS 가능성 높음). ' +
+      '원본 GLB는 새 탭으로 열어 다운로드 가능: ' + url +
+      ' — 해결: 로컬 서버 모드(local-server)를 사용하거나 프록시를 두세요. ' +
+      '원본 에러: ' + e.message
+    );
+  }
+  if (!res.ok) throw new Error('mesh fetch failed: ' + res.status + ' ' + res.statusText);
+  const arrBuf = await res.arrayBuffer();
+  lastGlbBlob = new Blob([arrBuf], { type: 'application/octet-stream' });
+
+  if (lower.endsWith('.glb') || lower.endsWith('.gltf')) {
+    return await parseGLB(arrBuf);
+  } else if (lower.endsWith('.obj')) {
+    const text = new TextDecoder().decode(arrBuf);
+    return await parseOBJ(text);
+  } else if (lower.endsWith('.ply')) {
+    throw new Error('PLY 미지원 — 모델 출력 형식을 GLB/OBJ로 변경하세요.');
+  } else {
+    // Try GLB by magic number
+    const view = new DataView(arrBuf);
+    if (view.getUint32(0, true) === 0x46546c67) return await parseGLB(arrBuf);
+    throw new Error('알 수 없는 mesh 형식');
+  }
+}
+
+function parseGLB(arrBuf) {
+  return new Promise((resolve, reject) => {
+    const loader = new THREE.GLTFLoader();
+    loader.parse(arrBuf, '', gltf => {
+      const meshes = [];
+      gltf.scene.updateMatrixWorld(true);
+      gltf.scene.traverse(c => {
+        if (c.isMesh && c.geometry) {
+          meshes.push(c);
+        }
+      });
+      resolve({ scene: gltf.scene, meshes });
+    }, err => reject(err));
+  });
+}
+
+/**
+ * Extract the first usable texture image from a parsed GLB's meshes.
+ * GLTFLoader puts the diffuse texture in mesh.material.map.image
+ * (which is typically an HTMLImageElement or ImageBitmap).
+ *
+ * @param {THREE.Mesh[]} meshes
+ * @returns {HTMLCanvasElement|HTMLImageElement|null}
+ */
+function extractGlbTextureImage(meshes) {
+  for (const m of meshes) {
+    const mat = m.material;
+    if (!mat) continue;
+    // Standard / Basic / Phong materials all expose .map
+    const tex = mat.map || (Array.isArray(mat) ? mat[0]?.map : null);
+    if (tex && tex.image) {
+      const img = tex.image;
+      // ImageBitmap is not directly drawable for getImageData via Image, but canvas drawImage works
+      // We normalize to a canvas so downstream bakeTextureToVertexColors works uniformly.
+      const w = img.width || img.naturalWidth;
+      const h = img.height || img.naturalHeight;
+      if (!w || !h) continue;
+      const cvs = document.createElement('canvas');
+      cvs.width = w; cvs.height = h;
+      const ctx = cvs.getContext('2d', { willReadFrequently: true });
+      try {
+        ctx.drawImage(img, 0, 0, w, h);
+        return cvs;
+      } catch (e) {
+        log('GLB 텍스처 캔버스 변환 실패: ' + e.message, 'warn');
+      }
+    }
+  }
+  return null;
+}
+
+function parseOBJ(text) {
+  const loader = new THREE.OBJLoader();
+  const group = loader.parse(text);
+  group.updateMatrixWorld(true);
+  const meshes = [];
+  group.traverse(c => { if (c.isMesh && c.geometry) meshes.push(c); });
+  return { scene: group, meshes };
+}
+
+/**
+ * Parse OBJ + MTL + textures from File objects.
+ * Uses LoadingManager.setURLModifier to redirect filename references in the
+ * MTL (e.g. "map_Kd texture.png") to blob URLs of the uploaded image files.
+ *
+ * @param {File} objFile
+ * @param {File|null} mtlFile
+ * @param {File[]} textureFiles
+ * @returns {Promise<{scene: THREE.Group, meshes: THREE.Mesh[], textureFile: File|null}>}
+ */
+async function parseOBJWithMTL(objFile, mtlFile, textureFiles) {
+  const objText = await objFile.text();
+  // If no MTL provided, fall back to plain OBJ parsing
+  if (!mtlFile) {
+    const parsed = parseOBJ(objText);
+    return { ...parsed, textureFile: textureFiles && textureFiles[0] ? textureFiles[0] : null };
+  }
+  const mtlText = await mtlFile.text();
+
+  // Build a name → blob-URL map for textures (basename, case-insensitive)
+  const texMap = new Map();
+  for (const tf of textureFiles) {
+    const url = URL.createObjectURL(tf);
+    texMap.set(tf.name.toLowerCase(), url);
+    // Also strip directory portion just in case
+    const base = tf.name.split(/[\\/]/).pop().toLowerCase();
+    if (!texMap.has(base)) texMap.set(base, url);
+  }
+
+  const manager = new THREE.LoadingManager();
+  manager.setURLModifier(url => {
+    const base = url.split(/[\\/]/).pop().toLowerCase().split('?')[0];
+    if (texMap.has(base)) return texMap.get(base);
+    // Strip leading "./" or relative prefix
+    const stripped = url.replace(/^\.?\/+/, '').toLowerCase();
+    if (texMap.has(stripped)) return texMap.get(stripped);
+    return url; // unchanged (may 404; that's fine — caller handles)
+  });
+
+  const mtlLoader = new THREE.MTLLoader(manager);
+  // setResourcePath('') makes the loader pass relative names directly to setURLModifier
+  mtlLoader.setResourcePath('');
+  const materials = mtlLoader.parse(mtlText, '');
+  materials.preload();
+
+  const objLoader = new THREE.OBJLoader(manager);
+  objLoader.setMaterials(materials);
+  const group = objLoader.parse(objText);
+  group.updateMatrixWorld(true);
+
+  const meshes = [];
+  group.traverse(c => { if (c.isMesh && c.geometry) meshes.push(c); });
+
+  // Pick the first texture file as the "primary" texture to bake (most common case
+  // for InstantMesh: a single mesh.png atlas).
+  return { scene: group, meshes, textureFile: textureFiles[0] || null };
+}
+
+/* =========== Texture → vertex color bake =========== */
+/**
+ * Sample the given image (HTMLImageElement / HTMLCanvasElement) at each
+ * vertex's UV coordinate and write the sampled RGB to a 'color' attribute on
+ * the geometry. UV V axis is flipped (OBJ/MTL convention).
+ *
+ * This is the workaround for two facts:
+ *   1. SimplifyModifier (r128) drops non-position attributes.
+ *   2. rhino3dm.js does not reliably embed texture files in .3dm output;
+ *      vertex colors render directly in Rhino with no extra setup.
+ *
+ * @param {THREE.BufferGeometry} geom (will be modified in place)
+ * @param {HTMLImageElement|HTMLCanvasElement} image
+ * @returns {boolean} success
+ */
+function bakeTextureToVertexColors(geom, image) {
+  if (!geom || !image) return false;
+  const uvAttr = geom.attributes.uv;
+  if (!uvAttr) {
+    log('UV 좌표가 없어 텍스처 베이크 불가', 'warn');
+    return false;
+  }
+  const w = image.width || image.naturalWidth;
+  const h = image.height || image.naturalHeight;
+  if (!w || !h) { log('텍스처 이미지 크기 0 — 베이크 스킵', 'warn'); return false; }
+
+  const cvs = document.createElement('canvas');
+  cvs.width = w; cvs.height = h;
+  const ctx = cvs.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data;
+
+  const n = geom.attributes.position.count;
+  const colors = new Float32Array(n * 3);
+  let oob = 0;
+  for (let i = 0; i < n; i++) {
+    let u = uvAttr.getX(i);
+    let v = uvAttr.getY(i);
+    // Wrap UVs (texture-style repeat for safety)
+    u = u - Math.floor(u);
+    v = v - Math.floor(v);
+    // OBJ/MTL: V flipped relative to canvas pixel space
+    const px_x = Math.min(w - 1, Math.max(0, Math.floor(u * w)));
+    const px_y = Math.min(h - 1, Math.max(0, Math.floor((1 - v) * h)));
+    const o = (px_y * w + px_x) * 4;
+    if (o < 0 || o >= px.length) { oob++; continue; }
+    colors[i*3]     = px[o]     / 255;
+    colors[i*3 + 1] = px[o + 1] / 255;
+    colors[i*3 + 2] = px[o + 2] / 255;
+  }
+  geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  log(`vertex color 베이크: ${n.toLocaleString()} verts${oob ? ` (OOB ${oob})` : ''}`, 'ok');
+  return true;
+}
+
+/* =========== Mesh optimization =========== */
+function optimizeGeometry(geomIn) {
+  const optMode = document.getElementById('optMode').value;
+  const targetFaces = parseInt(document.getElementById('targetFaces').value) || 5000;
+  const mergeTol = parseFloat(document.getElementById('mergeTol').value);
+  if (optMode === 'off') return geomIn;
+
+  let g = geomIn;
+  // Ensure non-indexed geometries get indexed for processing
+  if (!g.attributes.position) return g;
+
+  // Step 1: merge duplicate vertices
+  if (THREE.BufferGeometryUtils && THREE.BufferGeometryUtils.mergeVertices) {
+    const before = g.attributes.position.count;
+    try {
+      g = THREE.BufferGeometryUtils.mergeVertices(g, isFinite(mergeTol) ? mergeTol : 1e-4);
+      log(`mergeVertices: ${before} → ${g.attributes.position.count} verts`, 'info');
+    } catch (e) {
+      log('mergeVertices 실패: ' + e.message, 'warn');
+    }
+  }
+  if (optMode === 'merge-only') return g;
+
+  // Step 2: face decimation via SimplifyModifier
+  const curFaces = g.index ? g.index.count/3 : g.attributes.position.count/3;
+  const doDecimate = optMode === 'force' || (optMode === 'auto' && curFaces > targetFaces);
+  if (doDecimate && THREE.SimplifyModifier) {
+    // SimplifyModifier in r128 works on a non-indexed geometry. Convert if needed.
+    let inGeom = g;
+    if (inGeom.index) inGeom = inGeom.toNonIndexed();
+    const vCount = inGeom.attributes.position.count;
+    // For non-indexed: verts = 3 * faces. We need verts to be 3 * targetFaces.
+    const targetVForFaces = Math.max(60, targetFaces * 3);
+    const removeCount = Math.max(0, vCount - targetVForFaces);
+    const hadColor = !!inGeom.attributes.color;
+    if (removeCount > 0) {
+      try {
+        log(`SimplifyModifier 시작: faces ${Math.floor(curFaces)} → ${targetFaces} (verts ${vCount} -${removeCount})${hadColor ? ' [+vertex color remap]' : ''}`, 'info');
+        const t0 = performance.now();
+        const mod = new THREE.SimplifyModifier();
+        const out = mod.modify(inGeom, removeCount);
+        const dt = ((performance.now() - t0) / 1000).toFixed(1);
+        const newFaces = out.index ? out.index.count/3 : out.attributes.position.count/3;
+        log(`simplify 완료: ${Math.floor(newFaces)} faces (${dt}s)`, 'ok');
+
+        // SimplifyModifier drops non-position attributes. If we had vertex colors
+        // (texture bake), remap them by nearest-neighbor lookup from old positions.
+        if (hadColor && out.attributes.position) {
+          remapVertexAttribute(out, inGeom, 'color', 3);
+        }
+        g = out;
+      } catch (e) {
+        log('simplify 실패: ' + e.message, 'warn');
+      }
+    }
+  }
+  return g;
+}
+
+/**
+ * After SimplifyModifier drops attributes, copy back a named attribute by
+ * nearest-neighbor lookup from the pre-simplification geometry. Acceptable
+ * O(N*M) cost for typical 5k-target meshes (worst-case ~100M ops).
+ */
+function remapVertexAttribute(outGeom, srcGeom, attrName, itemSize) {
+  const srcAttr = srcGeom.attributes[attrName];
+  if (!srcAttr) return;
+  const outPos = outGeom.attributes.position;
+  const srcPos = srcGeom.attributes.position;
+  if (!outPos || !srcPos) return;
+  const n = outPos.count;
+  const m = srcPos.count;
+  const arr = new Float32Array(n * itemSize);
+  // Build a simple grid hash on src for speed
+  // Compute bbox
+  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
+  for (let i = 0; i < m; i++) {
+    const x = srcPos.getX(i), y = srcPos.getY(i), z = srcPos.getZ(i);
+    if (x<minX) minX=x; if (y<minY) minY=y; if (z<minZ) minZ=z;
+    if (x>maxX) maxX=x; if (y>maxY) maxY=y; if (z>maxZ) maxZ=z;
+  }
+  const gridN = Math.max(1, Math.round(Math.cbrt(m / 4)));
+  const sx = (maxX-minX) || 1, sy = (maxY-minY) || 1, sz = (maxZ-minZ) || 1;
+  const cell = (x,y,z) => {
+    const gx = Math.min(gridN-1, Math.max(0, Math.floor((x-minX)/sx * gridN)));
+    const gy = Math.min(gridN-1, Math.max(0, Math.floor((y-minY)/sy * gridN)));
+    const gz = Math.min(gridN-1, Math.max(0, Math.floor((z-minZ)/sz * gridN)));
+    return gx + gy*gridN + gz*gridN*gridN;
+  };
+  const buckets = new Map();
+  for (let i = 0; i < m; i++) {
+    const k = cell(srcPos.getX(i), srcPos.getY(i), srcPos.getZ(i));
+    let arr = buckets.get(k); if (!arr) { arr = []; buckets.set(k, arr); }
+    arr.push(i);
+  }
+  for (let i = 0; i < n; i++) {
+    const x = outPos.getX(i), y = outPos.getY(i), z = outPos.getZ(i);
+    // Search a 3x3x3 neighborhood
+    const gx = Math.min(gridN-1, Math.max(0, Math.floor((x-minX)/sx * gridN)));
+    const gy = Math.min(gridN-1, Math.max(0, Math.floor((y-minY)/sy * gridN)));
+    const gz = Math.min(gridN-1, Math.max(0, Math.floor((z-minZ)/sz * gridN)));
+    let bestI = -1, bestD = Infinity;
+    let radius = 0;
+    while (bestI < 0 && radius <= gridN) {
+      for (let dx=-radius; dx<=radius; dx++) for (let dy=-radius; dy<=radius; dy++) for (let dz=-radius; dz<=radius; dz++) {
+        if (radius > 0 && Math.max(Math.abs(dx),Math.abs(dy),Math.abs(dz)) !== radius) continue;
+        const nx=gx+dx, ny=gy+dy, nz=gz+dz;
+        if (nx<0||ny<0||nz<0||nx>=gridN||ny>=gridN||nz>=gridN) continue;
+        const k = nx + ny*gridN + nz*gridN*gridN;
+        const lst = buckets.get(k); if (!lst) continue;
+        for (const idx of lst) {
+          const dxv = srcPos.getX(idx)-x, dyv = srcPos.getY(idx)-y, dzv = srcPos.getZ(idx)-z;
+          const d = dxv*dxv + dyv*dyv + dzv*dzv;
+          if (d < bestD) { bestD = d; bestI = idx; }
+        }
+      }
+      radius++;
+    }
+    if (bestI < 0) bestI = 0;
+    for (let c = 0; c < itemSize; c++) {
+      arr[i*itemSize + c] = srcAttr.array[bestI*itemSize + c];
+    }
+  }
+  outGeom.setAttribute(attrName, new THREE.BufferAttribute(arr, itemSize));
+}
+
+/* =========== Three.js geometry → rhino3dm.Mesh =========== */
+function threeGeomToRhino(geom) {
+  const rMesh = new rhino.Mesh();
+  const verts = rMesh.vertices();
+  const faces = rMesh.faces();
+  const pos = geom.attributes.position;
+  const normalAttr = geom.attributes.normal;
+  const colorAttr = geom.attributes.color;
+  const idx = geom.index ? geom.index.array : null;
+  for (let i = 0; i < pos.count; i++) {
+    verts.add(pos.getX(i), pos.getY(i), pos.getZ(i));
+  }
+  if (idx) {
+    for (let i = 0; i < idx.length; i += 3) {
+      faces.addTriFace(idx[i], idx[i+1], idx[i+2]);
+    }
+  } else {
+    const n = pos.count;
+    for (let i = 0; i < n; i += 3) {
+      faces.addTriFace(i, i+1, i+2);
+    }
+  }
+
+  // Write vertex normals (Rhino's Shaded view uses these for lighting; without
+  // them many display modes render the mesh dark)
+  if (normalAttr) {
+    try {
+      const ns = (typeof rMesh.normals === 'function') ? rMesh.normals() :
+                 (typeof rMesh.vertexNormals === 'function') ? rMesh.vertexNormals() : null;
+      if (ns && typeof ns.add === 'function') {
+        for (let i = 0; i < pos.count; i++) {
+          ns.add(normalAttr.getX(i), normalAttr.getY(i), normalAttr.getZ(i));
+        }
+      }
+    } catch (e) {
+      log('vertex normal → rhino 전달 실패: ' + e.message, 'warn');
+    }
+  }
+
+  // Write vertex colors if present (baked from texture in OBJ+MTL flow).
+  // rhino3dm.js version skew: try multiple signatures.
+  let colorsWritten = 0;
+  if (colorAttr && typeof rMesh.vertexColors === 'function') {
+    try {
+      const vc = rMesh.vertexColors();
+      for (let i = 0; i < pos.count; i++) {
+        const r = Math.round(Math.min(1, Math.max(0, colorAttr.getX(i))) * 255);
+        const gC = Math.round(Math.min(1, Math.max(0, colorAttr.getY(i))) * 255);
+        const b = Math.round(Math.min(1, Math.max(0, colorAttr.getZ(i))) * 255);
+        let ok = false;
+        // (a) signed-int packed ARGB (rhino3dm builds vary; some accept a single int)
+        try { vc.add(r, gC, b, 255); ok = true; } catch (_) {}
+        if (!ok) { try { vc.add(r, gC, b); ok = true; } catch (_) {} }
+        if (!ok) { try { vc.add({ r, g: gC, b, a: 255 }); ok = true; } catch (_) {} }
+        if (!ok) { try { vc.add([r, gC, b, 255]); ok = true; } catch (_) {} }
+        if (ok) colorsWritten++;
+      }
+      if (colorsWritten) log(`rhino vertex color 기록: ${colorsWritten.toLocaleString()} verts`, 'ok');
+      else log('rhino3dm.js vertexColors API 호환 시그니처 없음', 'warn');
+    } catch (e) {
+      log('vertex color → rhino 전달 실패: ' + e.message, 'warn');
+    }
+  }
+
+  rMesh.compact();
+  rMesh._hasVertexColors = colorsWritten > 0; // hint for buildRhinoFile
+  return rMesh;
+}
+
+/* =========== Shared mesh→rhino pipeline (used by Image & OBJ modes) =========== */
+async function processMeshGeometries(loadedMeshes, textureImage = null) {
+  // 1) Bake each mesh's world matrix into a fresh geometry
+  const axisFix = document.getElementById('axisFix').value;
+  const fixMat = new THREE.Matrix4();
+  if (axisFix === 'x-90') fixMat.makeRotationX(-Math.PI/2);
+  else if (axisFix === 'x90') fixMat.makeRotationX(Math.PI/2);
+  else if (axisFix === 'y180') fixMat.makeRotationY(Math.PI);
+
+  const bakedGeoms = loadedMeshes.map(m => {
+    const g = m.geometry.clone();
+    g.applyMatrix4(m.matrixWorld);
+    if (axisFix !== 'none') g.applyMatrix4(fixMat);
+    return g;
+  });
+
+  // 1.5) Texture → vertex color bake.
+  //
+  // Three sources of color in priority order:
+  //   (a) geometry.attributes.color already present (e.g. Hunyuan3D, TripoSR
+  //       sometimes outputs vertex-colored GLB) → keep, no bake.
+  //   (b) textureImage + UV → bake by sampling texture at UV coords.
+  //   (c) None → mesh stays uncolored; Rhino shows ByLayer color.
+  let preColored = 0, baked = 0, skippedNoUV = 0;
+  for (const g of bakedGeoms) {
+    if (g.attributes.color) {
+      preColored++;
+      continue;
+    }
+    if (!textureImage) continue;
+    if (!g.attributes.uv) {
+      skippedNoUV++;
+      continue;
+    }
+    if (bakeTextureToVertexColors(g, textureImage)) baked++;
+  }
+  if (preColored) log(`기존 vertex color 보존: ${preColored} mesh`, 'ok');
+  if (baked) log(`텍스처 → vertex color 베이크: ${baked}/${bakedGeoms.length} mesh`, 'ok');
+  if (skippedNoUV) log(`UV 좌표 없어 베이크 스킵: ${skippedNoUV} mesh — Rhino에서 색 없이 표시됨`, 'warn');
+  if (!preColored && !baked) log('vertex color 없음 — .3dm은 무색 메쉬로 저장됨', 'warn');
+
+  // 2) Optimize each
+  const optGeoms = bakedGeoms.map(g => optimizeGeometry(g));
+
+  // 3) Compute bbox over all
+  const bbox = new THREE.Box3();
+  optGeoms.forEach(g => { g.computeBoundingBox(); if (g.boundingBox) bbox.union(g.boundingBox); });
+  const size = new THREE.Vector3(); bbox.getSize(size);
+  const center = new THREE.Vector3(); bbox.getCenter(center);
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+  // 4) Determine target scale (mm)
+  const manualScale = parseFloat(document.getElementById('manualScale').value);
+  let targetMm = 100;
+  if (!isNaN(manualScale) && manualScale > 0) targetMm = manualScale;
+  else if (lastAnalysis && lastAnalysis.longest_mm) targetMm = lastAnalysis.longest_mm;
+  const scaleFactor = targetMm / maxDim;
+  log(`스케일: longest ${maxDim.toFixed(3)} → ${targetMm}mm (×${scaleFactor.toFixed(3)})`);
+
+  // 5) Final transform: center then scale
+  const xform = new THREE.Matrix4()
+    .makeScale(scaleFactor, scaleFactor, scaleFactor)
+    .multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z));
+
+  // 6) Bake transform into final geoms, ensure normals (Rhino lighting needs them), convert to rhino meshes
+  const finalGeoms = optGeoms.map(g => {
+    const c = g.clone();
+    c.applyMatrix4(xform);
+    // (Re)compute vertex normals AFTER the final transform so they're consistent.
+    // Rhino's Shaded display needs normals to do lighting; without them the mesh
+    // renders flat/dark.
+    c.computeVertexNormals();
+    return c;
+  });
+  const rhinoMeshes = finalGeoms.map(g => threeGeomToRhino(g));
+
+  // 7) Build .3dm
+  const file = buildRhinoFile(rhinoMeshes);
+  const arr = file.toByteArray();
+  lastDmBlob = new Blob([arr], { type: 'application/octet-stream' });
+  const dmUrl = URL.createObjectURL(lastDmBlob);
+  const dl = document.getElementById('downloadLink');
+  dl.href = dmUrl; dl.download = `output_${Date.now()}.3dm`;
+  dl.classList.remove('hidden');
+
+  // 8) Preview
+  buildOptimizedPreview(finalGeoms);
+
+  const totalFaces = finalGeoms.reduce((s,g) => s + (g.index ? g.index.count/3 : g.attributes.position.count/3), 0);
+  const totalVerts = finalGeoms.reduce((s,g) => s + g.attributes.position.count, 0);
+  document.getElementById('meshStats').textContent = `${totalVerts.toLocaleString()} / ${Math.floor(totalFaces).toLocaleString()}`;
+  return { byteLength: arr.byteLength, faces: Math.floor(totalFaces) };
+}
+
+function buildOptimizedPreview(geoms) {
+  clearGroup();
+  const bbox = new THREE.Box3();
+  geoms.forEach(g => {
+    const gc = g.clone();
+    if (!gc.attributes.normal) gc.computeVertexNormals();
+    const hasColor = !!gc.attributes.color;
+    const meshMat = hasColor
+      ? new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.05, roughness: 0.85, side: THREE.DoubleSide, flatShading: false })
+      : new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.05, roughness: 0.75, side: THREE.DoubleSide, flatShading: true });
+    const m = new THREE.Mesh(gc, meshMat);
+    objectsGroup.add(m);
+    gc.computeBoundingBox();
+    if (gc.boundingBox) bbox.union(gc.boundingBox);
+    const eg = new THREE.EdgesGeometry(gc, 30);
+    const lm = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x262626, transparent: true, opacity: 0.35 }));
+    objectsGroup.add(lm);
+  });
+  if (!bbox.isEmpty()) {
+    const size = new THREE.Vector3(); bbox.getSize(size);
+    const center = new THREE.Vector3(); bbox.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z, 10);
+    camera.position.set(center.x + maxDim*1.5, center.y + maxDim*1.5, center.z + maxDim*1.5);
+    controls.target.copy(center);
+    document.getElementById('bbox').textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+  }
+}
+
+/* =========== Build .3dm =========== */
+function buildRhinoFile(rhinoMeshes) {
+  const file = new rhino.File3dm();
+  rhinoMeshes.forEach(m => {
+    // If mesh has vertex colors, attach ObjectAttributes that tell Rhino to use them.
+    // rhino3dm.js exposes ObjectAttributes with colorSource / plotColorSource:
+    //   colorSource: 0=byLayer, 1=byObject, 2=byMaterial, 3=byParent
+    // Vertex colors are displayed by Rhino in display modes that have
+    // "color reduction → use vertex colors" — most modes show them when a
+    // mesh has the color array even with the default (ByLayer) source, but
+    // we set ByObject + white for max compatibility.
+    let attrs = null;
+    if (m && m._hasVertexColors) {
+      try {
+        attrs = new rhino.ObjectAttributes();
+        if ('colorSource' in attrs) attrs.colorSource = 1; // ColorFromObject
+        if (typeof attrs.drawColor !== 'undefined') {
+          attrs.drawColor = { r: 255, g: 255, b: 255, a: 255 };
+        } else if (typeof attrs.objectColor !== 'undefined') {
+          attrs.objectColor = { r: 255, g: 255, b: 255, a: 255 };
+        }
+      } catch (e) {
+        attrs = null;
+      }
+    }
+    file.objects().add(m, attrs);
+  });
+  return file;
+}
+
+/* =========== Text→Curves fallback (mode 2) =========== */
+const CURVES_PROMPT = `사용자 설명을 받아 Rhino 객체로 변환 가능한 JSON 형상 스펙으로 출력. 코드블록 없이 JSON만.
+
+{
+  "unit": "mm",
+  "objects": [
+    { "type": "line", "start": [x,y,z], "end": [x,y,z] },
+    { "type": "polyline", "points": [[x,y,z], ...] },
+    { "type": "circle", "center": [x,y,z], "radius": number, "normal": [0,0,1] },
+    { "type": "rectangle", "corner": [x,y,z], "width": number, "height": number },
+    { "type": "nurbs_curve", "degree": 3, "points": [[x,y,z], ...], "closed": false },
+    { "type": "box", "min": [x,y,z], "max": [x,y,z] },
+    { "type": "sphere", "center": [x,y,z], "radius": number }
+  ]
+}`;
+
+function makeRhinoFromSpec(spec) {
+  const file = new rhino.File3dm();
+  spec.objects.forEach(o => {
+    try {
+      const g = specToGeometry(o);
+      if (Array.isArray(g)) g.forEach(x => x && file.objects().add(x, null));
+      else if (g) file.objects().add(g, null);
+    } catch (e) {
+      log(`스펙 변환 실패 (${o.type}): ${e.message}`, 'warn');
+    }
+  });
+  return file;
+}
+function specToGeometry(o) {
+  switch (o.type) {
+    case 'line': return new rhino.LineCurve([o.start[0],o.start[1],o.start[2]||0],[o.end[0],o.end[1],o.end[2]||0]);
+    case 'polyline': {
+      const pl = new rhino.Polyline(o.points.length);
+      o.points.forEach(p => pl.add(p[0], p[1], p[2]||0));
+      return pl.toPolylineCurve();
+    }
+    case 'circle': {
+      const c = new rhino.Circle([o.center[0],o.center[1],o.center[2]||0], o.radius);
+      return c.toNurbsCurve();
+    }
+    case 'rectangle': {
+      const x=o.corner[0],y=o.corner[1],z=o.corner[2]||0,w=o.width,h=o.height;
+      const pl = new rhino.Polyline(5);
+      pl.add(x,y,z); pl.add(x+w,y,z); pl.add(x+w,y+h,z); pl.add(x,y+h,z); pl.add(x,y,z);
+      return pl.toPolylineCurve();
+    }
+    case 'nurbs_curve': {
+      const pts = o.points.map(p => [p[0],p[1],p[2]||0]);
+      const deg = Math.min(o.degree||3, pts.length-1);
+      return rhino.NurbsCurve.create(!!o.closed, deg, pts);
+    }
+    case 'box': {
+      const [a,b,c]=o.min,[d,e,f]=o.max;
+      const edges = [
+        [[a,b,c],[d,b,c]],[[d,b,c],[d,e,c]],[[d,e,c],[a,e,c]],[[a,e,c],[a,b,c]],
+        [[a,b,f],[d,b,f]],[[d,b,f],[d,e,f]],[[d,e,f],[a,e,f]],[[a,e,f],[a,b,f]],
+        [[a,b,c],[a,b,f]],[[d,b,c],[d,b,f]],[[d,e,c],[d,e,f]],[[a,e,c],[a,e,f]]
+      ];
+      return edges.map(([s,e]) => new rhino.LineCurve(s,e));
+    }
+    case 'sphere': return new rhino.Sphere([o.center[0],o.center[1],o.center[2]||0], o.radius).toBrep();
+  }
+  return null;
+}
+
+/* =========== Main run =========== */
+document.getElementById('btnRun').addEventListener('click', runPipeline);
+
+async function runPipeline() {
+  resetStages();
+  document.getElementById('btnRun').disabled = true;
+  document.getElementById('downloadLink').classList.add('hidden');
+  document.getElementById('downloadGlb').classList.add('hidden');
+
+  try {
+    if (mode === 'image') {
+      await runImageMode();
+    } else if (mode === 'obj') {
+      await runObjMode();
+    } else {
+      await runTextMode();
+    }
+  } catch (e) {
+    log('전체 실패: ' + e.message, 'err');
+    console.error(e);
+  } finally {
+    document.getElementById('btnRun').disabled = false;
+    updateRunButton();
+  }
+}
+
+async function runImageMode() {
+  if (!currentImage) throw new Error('이미지를 업로드하세요.');
+  log('==== Image → 3D → Rhino 시작 ====', 'stage');
+
+  // ---- Stage A: LLM analysis (optional) ----
+  let analysis = null;
+  const llmKey = llmKeyEl.value.trim();
+  if (llmKey && document.getElementById('llmStatus').classList.contains('ok')) {
+    setStage('stageA','active');
+    log('A · LLM 분석 시작', 'stage');
+    try {
+      const userPrompt = document.getElementById('userPrompt').value.trim();
+      const text = await callLLM(llmProviderEl.value, llmKey, llmModelEl.value,
+        ANALYSIS_PROMPT + (userPrompt ? '\n\n[사용자 추가설명]\n'+userPrompt : ''),
+        currentImage);
+      analysis = parseJson(text);
+      document.getElementById('llmAnalysis').textContent = text;
+      if (analysis) {
+        log(`LLM 분석: ${analysis.category || '?'} · 추정 ${analysis.longest_mm||'?'}mm`, 'ok');
+        setStage('stageA','done', `${analysis.category||'?'}`);
+      } else {
+        log('LLM JSON 파싱 실패, 기본 스케일 사용', 'warn');
+        setStage('stageA','done','파싱실패');
+      }
+    } catch (e) {
+      log('LLM 단계 에러 (계속 진행): ' + e.message, 'warn');
+      setStage('stageA','err','스킵');
+    }
+  } else {
+    setStage('stageA','idle','스킵 (LLM 키 없음)');
+    log('A · LLM 분석 스킵 (키 없음)', 'warn');
+  }
+
+  // ---- Stage B: Image → 3D mesh ----
+  setStage('stageB','active');
+  log('B · Image → 3D Mesh 시작', 'stage');
+  const meshModelKey = meshModelEl.value;
+  let meshUrl;
+  if (meshModelKey === 'local-server') {
+    const endpoint = meshUrlEl.value.trim();
+    if (!endpoint) throw new Error('로컬 엔드포인트 URL이 필요합니다.');
+    meshUrl = await localImageTo3D(endpoint, currentImage.dataUrl,
+      msg => setStage('stageB','active', msg));
+  } else {
+    const meshKey = meshKeyEl.value.trim();
+    if (!meshKey) throw new Error('fal.ai 키가 필요합니다.');
+    meshUrl = await falImageTo3D(meshModelKey, meshKey, currentImage.dataUrl,
+      msg => setStage('stageB','active', msg));
+  }
+  // ---- OBJ 번들 처리 (InstantMesh 로컬 서버) ----
+  let loaded, textureForBake = null;
+  if (meshUrl && typeof meshUrl === 'object' && meshUrl.type === 'obj-bundle') {
+    log(`OBJ 번들 수신: obj=${meshUrl.obj_url}`, 'ok');
+    setStage('stageB','active','OBJ+MTL+텍스처 로드 중');
+
+    // 1) OBJ 텍스트 fetch
+    const objRes = await fetch(meshUrl.obj_url);
+    if (!objRes.ok) throw new Error('OBJ fetch 실패: ' + objRes.status);
+    const objText = await objRes.text();
+
+    // 2) MTL 텍스트 fetch
+    let mtlText = null;
+    if (meshUrl.mtl_url) {
+      const mtlRes = await fetch(meshUrl.mtl_url);
+      if (mtlRes.ok) mtlText = await mtlRes.text();
+    }
+
+    // 3) 텍스처 fetch → blob URL
+    let texBlobUrl = null;
+    if (meshUrl.tex_url) {
+      const texRes = await fetch(meshUrl.tex_url);
+      if (texRes.ok) {
+        const texBlob = await texRes.blob();
+        texBlobUrl = URL.createObjectURL(texBlob);
+        // HTMLImageElement로 만들어 베이크에 사용
+        textureForBake = await new Promise((res, rej) => {
+          const img = new Image();
+          img.onload = () => res(img);
+          img.onerror = rej;
+          img.src = texBlobUrl;
+        });
+        log(`텍스처 로드: ${textureForBake.width}×${textureForBake.height}`, 'ok');
+      }
+    }
+
+    // 4) Three.js OBJ+MTL 파싱
+    if (mtlText && texBlobUrl) {
+      const texName = meshUrl.tex_url.split('/').pop().toLowerCase();
+      const texMap = new Map([[texName, texBlobUrl]]);
+      const manager = new THREE.LoadingManager();
+      manager.setURLModifier(url => {
+        const base = url.split(/[\\/]/).pop().toLowerCase().split('?')[0];
+        return texMap.get(base) || url;
+      });
+      const mtlLoader = new THREE.MTLLoader(manager);
+      mtlLoader.setResourcePath('');
+      const materials = mtlLoader.parse(mtlText, '');
+      materials.preload();
+      const objLoader = new THREE.OBJLoader(manager);
+      objLoader.setMaterials(materials);
+      const group = objLoader.parse(objText);
+      group.updateMatrixWorld(true);
+      const meshes = [];
+      group.traverse(c => { if (c.isMesh && c.geometry) meshes.push(c); });
+      loaded = { scene: group, meshes };
+    } else {
+      loaded = parseOBJ(objText);
+    }
+    log(`OBJ 로드 완료: ${loaded.meshes.length} mesh(es)`, 'ok');
+    setStage('stageB','done', `${loaded.meshes.length} mesh`);
+
+  } else {
+    // GLB URL (mock / triposr / fal.ai)
+    const glbUrl = meshUrl;
+    log(`mesh URL: ${glbUrl}`, 'ok');
+    if (meshModelKey !== 'local-server') {
+      const dl2 = document.getElementById('downloadGlb');
+      dl2.href = glbUrl;
+      dl2.download = `mesh_${Date.now()}.glb`;
+      dl2.target = '_blank';
+      dl2.rel = 'noopener';
+      dl2.classList.remove('hidden');
+    }
+    setStage('stageB','active','mesh 다운로드 중');
+    loaded = await loadMesh(glbUrl);
+    log(`mesh 로드 완료: ${loaded.meshes.length} mesh(es)`, 'ok');
+    setStage('stageB','done', `${loaded.meshes.length} mesh`);
+
+    const glbTexture = extractGlbTextureImage(loaded.meshes);
+    if (glbTexture) {
+      log(`GLB 텍스처 발견: ${glbTexture.width}×${glbTexture.height} → vertex color 베이크 예정`, 'ok');
+      textureForBake = glbTexture;
+    } else {
+      log('GLB에 텍스처 없음 — 색 없이 메쉬만 변환', 'warn');
+    }
+
+    if (lastGlbBlob) {
+      const dl2 = document.getElementById('downloadGlb');
+      dl2.href = URL.createObjectURL(lastGlbBlob);
+      dl2.download = `mesh_${Date.now()}.glb`;
+      dl2.classList.remove('hidden');
+    }
+  }
+
+  // ---- Stage C: Mesh → Rhino ----
+  setStage('stageC','active');
+  log('C · 메쉬 최적화 + rhino3dm 변환' + (textureForBake ? ' (텍스처 vertex color 베이크)' : ''), 'stage');
+  lastAnalysis = analysis;
+  const result = await processMeshGeometries(loaded.meshes, textureForBake);
+
+  setStage('stageC','done', `${(result.byteLength/1024).toFixed(1)} KB · ${result.faces.toLocaleString()} faces`);
+  log(`.3dm 생성: ${(result.byteLength/1024).toFixed(1)} KB, ${result.faces} faces`, 'ok');
+  if (textureForBake) {
+    log('💡 Rhino에서 색이 안 보이면: 표시모드를 "음영처리(Shaded)" 또는 "렌더링됨(Rendered)"로 변경', 'info');
+  }
+  log('==== 완료 ====', 'stage');
+}
+
+/* =========== OBJ Direct mode =========== */
+async function runObjMode() {
+  const meshFile = currentBundle.meshFile;
+  if (!meshFile) throw new Error('OBJ/GLB/PLY 파일을 업로드하세요.');
+  log('==== OBJ Direct → Rhino 시작 ====', 'stage');
+  setStage('stageA','done','스킵');
+  setStage('stageB','active','메쉬 파싱');
+
+  const lower = meshFile.name.toLowerCase();
+  const arrBuf = await meshFile.arrayBuffer();
+  lastGlbBlob = new Blob([arrBuf], { type: 'application/octet-stream' });
+
+  let loaded;
+  let textureImage = null;
+  if (lower.endsWith('.glb') || lower.endsWith('.gltf')) {
+    loaded = await parseGLB(arrBuf);
+    if (currentBundle.mtlFile || currentBundle.textureFiles.length) {
+      log('GLB/GLTF는 .mtl/.png 외부 파일을 사용하지 않습니다 — 무시됨', 'warn');
+    }
+  } else if (lower.endsWith('.obj')) {
+    if (currentBundle.mtlFile || currentBundle.textureFiles.length) {
+      log(`OBJ+MTL 파싱: mtl=${!!currentBundle.mtlFile}, textures=${currentBundle.textureFiles.length}`, 'info');
+      loaded = await parseOBJWithMTL(meshFile, currentBundle.mtlFile, currentBundle.textureFiles);
+    } else {
+      const text = new TextDecoder().decode(arrBuf);
+      loaded = await parseOBJ(text);
+    }
+    // Load texture as an HTMLImageElement for canvas-baking
+    if (currentBundle.textureFiles.length) {
+      const primary = currentBundle.textureFiles[0];
+      textureImage = await loadImageFromFile(primary);
+      log(`텍스처 로드: ${primary.name} (${textureImage.width}×${textureImage.height})`, 'ok');
+    }
+  } else if (lower.endsWith('.ply')) {
+    throw new Error('PLY 미지원 — OBJ나 GLB로 변환 후 다시 올려주세요.');
+  } else {
+    throw new Error('알 수 없는 형식: ' + meshFile.name);
+  }
+  const totalIn = loaded.meshes.reduce((s,m) => s + (m.geometry.index ? m.geometry.index.count/3 : m.geometry.attributes.position.count/3), 0);
+  log(`파싱 완료: ${loaded.meshes.length} mesh, ${Math.floor(totalIn).toLocaleString()} faces`, 'ok');
+  setStage('stageB','done', `${Math.floor(totalIn).toLocaleString()} faces`);
+
+  setStage('stageC','active');
+  log('C · 메쉬 최적화 + rhino3dm 변환' + (textureImage ? ' (텍스처 vertex color 베이크)' : ''), 'stage');
+  lastAnalysis = null; // OBJ mode: no LLM analysis; rely on manualScale
+  const result = await processMeshGeometries(loaded.meshes, textureImage);
+
+  if (lastGlbBlob) {
+    const glbUrl = URL.createObjectURL(lastGlbBlob);
+    const dl2 = document.getElementById('downloadGlb');
+    dl2.href = glbUrl;
+    dl2.download = `${meshFile.name.replace(/\.[^.]+$/,'')}_orig.${lower.endsWith('.obj')?'obj':'glb'}`;
+    dl2.classList.remove('hidden');
+  }
+
+  setStage('stageC','done', `${(result.byteLength/1024).toFixed(1)} KB · ${result.faces.toLocaleString()} faces`);
+  log(`.3dm 생성: ${(result.byteLength/1024).toFixed(1)} KB, ${result.faces} faces`, 'ok');
+  log('==== 완료 ====', 'stage');
+}
+
+/** Load a File into an HTMLImageElement (resolved when image is decoded). */
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = e => reject(new Error('이미지 로드 실패: ' + file.name));
+    img.src = url;
+  });
+}
+
+async function runTextMode() {
+  log('==== Text → Curves 모드 시작 ====', 'stage');
+  const userPrompt = document.getElementById('userPrompt').value.trim();
+  if (!userPrompt) throw new Error('설명이 필요합니다.');
+  setStage('stageA','active');
+  const llmKey = llmKeyEl.value.trim();
+  const raw = await callLLM(llmProviderEl.value, llmKey, llmModelEl.value,
+    CURVES_PROMPT + '\n\n[요청]\n' + userPrompt, null);
+  document.getElementById('llmAnalysis').textContent = raw;
+  const spec = parseJson(raw);
+  if (!spec || !Array.isArray(spec.objects)) throw new Error('LLM JSON 파싱 실패');
+  setStage('stageA','done', `${spec.objects.length} obj`);
+  setStage('stageB','done','스킵');
+
+  setStage('stageC','active');
+  const file = makeRhinoFromSpec(spec);
+  const arr = file.toByteArray();
+  lastDmBlob = new Blob([arr], { type: 'application/octet-stream' });
+  const dl = document.getElementById('downloadLink');
+  dl.href = URL.createObjectURL(lastDmBlob);
+  dl.download = `output_${Date.now()}.3dm`;
+  dl.classList.remove('hidden');
+
+  buildSpecPreview(spec);
+  setStage('stageC','done', `${(arr.byteLength/1024).toFixed(1)} KB`);
+  log('==== 완료 ====', 'stage');
+}
+
+/* =========== Three.js Viewer =========== */
+function initViewer() {
+  const container = document.getElementById('viewer');
+  const w = container.clientWidth, h = container.clientHeight;
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100000);
+  camera.position.set(200, 200, 200);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0,0,0);
+
+  const grid = new THREE.GridHelper(500, 50, 0x262626, 0x141414);
+  grid.rotation.x = Math.PI/2;
+  scene.add(grid);
+  scene.add(new THREE.AxesHelper(60));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+  dl.position.set(100, 200, 150);
+  scene.add(dl);
+
+  objectsGroup = new THREE.Group();
+  scene.add(objectsGroup);
+
+  window.addEventListener('resize', () => {
+    const w2 = container.clientWidth, h2 = container.clientHeight;
+    camera.aspect = w2/h2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w2, h2);
+  });
+
+  (function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+  })();
+}
+
+function clearGroup() {
+  while (objectsGroup.children.length) {
+    const c = objectsGroup.children.pop();
+    if (c.geometry) c.geometry.dispose && c.geometry.dispose();
+    if (c.material) c.material.dispose && c.material.dispose();
+  }
+}
+
+function buildMeshPreview(items, targetMm) {
+  clearGroup();
+  const meshMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.05, roughness: 0.75, side: THREE.DoubleSide });
+  const bbox = new THREE.Box3();
+  let totalV = 0, totalF = 0;
+  items.forEach(({mesh, mat}) => {
+    const g = mesh.geometry.clone();
+    g.applyMatrix4(mat);
+    const m = new THREE.Mesh(g, meshMat);
+    objectsGroup.add(m);
+    g.computeBoundingBox();
+    if (g.boundingBox) bbox.union(g.boundingBox);
+    totalV += g.attributes.position.count;
+    totalF += g.index ? g.index.count/3 : g.attributes.position.count/3;
+
+    // wireframe overlay
+    const eg = new THREE.EdgesGeometry(g, 30);
+    const lm = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x262626, transparent: true, opacity: 0.4 }));
+    objectsGroup.add(lm);
+  });
+  document.getElementById('meshStats').textContent = `${totalV.toLocaleString()} / ${Math.floor(totalF).toLocaleString()}`;
+  if (!bbox.isEmpty()) {
+    const size = new THREE.Vector3(); bbox.getSize(size);
+    const center = new THREE.Vector3(); bbox.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z, 10);
+    camera.position.set(center.x + maxDim*1.5, center.y + maxDim*1.5, center.z + maxDim*1.5);
+    controls.target.copy(center);
+    document.getElementById('bbox').textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+  }
+}
+
+function buildSpecPreview(spec) {
+  clearGroup();
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+  const bbox = new THREE.Box3();
+  spec.objects.forEach(o => {
+    let line = null;
+    if (o.type === 'line') line = mkLine([o.start, o.end], lineMat);
+    else if (o.type === 'polyline') line = mkLine(o.points, lineMat);
+    else if (o.type === 'rectangle') {
+      const x=o.corner[0],y=o.corner[1],z=o.corner[2]||0;
+      line = mkLine([[x,y,z],[x+o.width,y,z],[x+o.width,y+o.height,z],[x,y+o.height,z],[x,y,z]], lineMat);
+    } else if (o.type === 'circle') line = mkCircle(o.center, o.radius, 64, lineMat);
+    else if (o.type === 'nurbs_curve') line = mkSpline(o.points, !!o.closed, lineMat);
+    else if (o.type === 'box') {
+      const [a,b,c]=o.min,[d,e,f]=o.max;
+      const g = new THREE.BoxGeometry(d-a,e-b,f-c);
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:0.6}));
+      m.position.set((a+d)/2,(b+e)/2,(c+f)/2);
+      objectsGroup.add(m);
+      bbox.expandByObject(m);
+    } else if (o.type === 'sphere') {
+      const g = new THREE.SphereGeometry(o.radius, 32, 24);
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:0xffffff, transparent:true, opacity:0.6}));
+      m.position.set(o.center[0],o.center[1],o.center[2]||0);
+      objectsGroup.add(m);
+      bbox.expandByObject(m);
+    }
+    if (line) { objectsGroup.add(line); line.geometry.computeBoundingBox && line.geometry.computeBoundingBox(); if (line.geometry.boundingBox) bbox.union(line.geometry.boundingBox); }
+  });
+  document.getElementById('meshStats').textContent = `${spec.objects.length} objects`;
+  if (!bbox.isEmpty()) {
+    const size = new THREE.Vector3(); bbox.getSize(size);
+    const center = new THREE.Vector3(); bbox.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z, 10);
+    camera.position.set(center.x + maxDim*1.5, center.y + maxDim*1.5, center.z + maxDim*1.5);
+    controls.target.copy(center);
+    document.getElementById('bbox').textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
+  }
+}
+
+function mkLine(points, mat) {
+  const v = points.map(p => new THREE.Vector3(p[0], p[1], p[2]||0));
+  const g = new THREE.BufferGeometry().setFromPoints(v);
+  return new THREE.Line(g, mat);
+}
+function mkCircle(center, radius, segs, mat) {
+  const v = [];
+  for (let i=0;i<=segs;i++){ const a=i/segs*Math.PI*2; v.push(new THREE.Vector3(center[0]+Math.cos(a)*radius, center[1]+Math.sin(a)*radius, center[2]||0)); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(v), mat);
+}
+function mkSpline(points, closed, mat) {
+  if (points.length < 2) return null;
+  const v = points.map(p => new THREE.Vector3(p[0], p[1], p[2]||0));
+  const curve = new THREE.CatmullRomCurve3(v, closed);
+  const pts = curve.getPoints(Math.max(64, v.length*8));
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+}
+
+/* =========== Boot =========== */
+(async function init() {
+  log('rhino3dm.js 로딩...');
+  try {
+    rhino = await window.rhino3dm();
+    log('rhino3dm 준비 완료', 'ok');
+  } catch (e) { log('rhino3dm 로드 실패: '+e.message, 'err'); }
+  initViewer();
+  resetStages();
+  log('준비 완료. 1) 두 API 키 연결 → 2) 이미지 업로드 → 3) 실행', 'ok');
+})();
+</script>
+</body>
+</html>
