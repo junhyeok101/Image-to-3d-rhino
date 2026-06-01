@@ -220,12 +220,24 @@ def run_instantmesh(_unused, pil_img: Image.Image, out_path: Path) -> Path:
         mtl_out.write_text(mtl_text)
         log.info(f"MTL written: {mtl_out.name}")
 
-    tex_src = obj_path.with_suffix('.png')
+    # MTL에서 map_Kd 텍스처 파일명 파싱 → 정확한 파일 찾기
+    tex_src = obj_path.with_suffix('.png')  # 기본: 같은 이름 PNG
+    if not tex_src.exists() and has_mtl:
+        # MTL 파일에서 map_Kd 줄 파싱
+        for line in mtl_src.read_text(errors='replace').splitlines():
+            if line.strip().lower().startswith('map_kd'):
+                tex_name = line.strip().split()[-1]
+                candidate = obj_path.parent / tex_name
+                if candidate.exists():
+                    tex_src = candidate
+                    break
     if not tex_src.exists():
-        pngs = sorted(obj_path.parent.glob('*.png'), key=lambda p: p.stat().st_size, reverse=True)
-        if pngs:
-            tex_src = pngs[0]
+        # 같은 폴더에서 stem 이름 포함한 PNG만 탐색
+        candidates = [p for p in obj_path.parent.glob('*.png') if obj_path.stem in p.stem]
+        if candidates:
+            tex_src = candidates[0]
     has_tex = tex_src.exists()
+    log.info(f"텍스처 소스: {tex_src.name if has_tex else 'None'}")
     if has_tex:
         shutil.copy2(tex_src, tex_out)
         log.info(f"Texture copied: {tex_out.name} ({tex_out.stat().st_size//1024} KB)")

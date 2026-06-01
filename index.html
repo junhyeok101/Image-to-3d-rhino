@@ -2258,7 +2258,7 @@ async function runImageMode() {
       input_image_url: inputImgUrl || '',
       obj_url: (meshUrl && typeof meshUrl === 'object') ? meshUrl.obj_url : (meshUrl || ''),
       tex_url: (meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : '',
-      thumbnail_url: inputImgUrl || ((meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : ''),
+      thumbnail_url: inputImgUrl || '',
       category: analysis ? (analysis.category || '') : '',
       scale_mm: analysis ? (analysis.longest_mm || null) : null,
       bbox: result.bbox || '',
@@ -2723,7 +2723,7 @@ async function loadGallery() {
       const date = new Date(row.created_at).toLocaleString('ko-KR');
       const thumb = row.input_image_url || row.thumbnail_url;
       const thumbHtml = thumb
-        ? `<img class="gallery-thumb" src="${thumb}" alt="thumbnail" loading="lazy" onerror="this.style.display='none'">`
+        ? `<img class="gallery-thumb" src="${thumb}" alt="thumbnail" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=gallery-thumb-placeholder>🧊</div>'">`
         : `<div class="gallery-thumb-placeholder">🧊</div>`;
       const category = row.category ? `<span style="font-size:12px;font-weight:600;color:var(--text);">${row.category}</span>` : '';
       const bbox = row.bbox ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;">📐 ${row.bbox} mm</div>` : '';
