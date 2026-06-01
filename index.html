@@ -2252,12 +2252,33 @@ async function runImageMode() {
 
   // ---- Supabase 갤러리 저장 ----
   try {
-    const stem = `img_${Date.now()}`;
+    const stem = `model_${Date.now()}`;
+
+    // 1) 입력 이미지 업로드
     const inputImgUrl = await uploadImageToSupabase(currentImage.dataUrl, `inputs/${stem}_input.png`);
+
+    // 2) .3dm 업로드 (lastDmBlob 사용)
+    let tdmUrl = '';
+    if (lastDmBlob) {
+      const tdmDataUrl = await new Promise(res => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.readAsDataURL(lastDmBlob);
+      });
+      tdmUrl = await uploadImageToSupabase(tdmDataUrl, `tdm/${stem}.3dm`) || '';
+    }
+
+    // 3) OBJ/MTL URL (서버에서 이미 Supabase에 올림)
+    const objUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.obj_url || '') : (meshUrl || '');
+    const mtlUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.mtl_url || '') : '';
+    const texUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : '';
+
     const record = {
       input_image_url: inputImgUrl || '',
-      obj_url: (meshUrl && typeof meshUrl === 'object') ? meshUrl.obj_url : (meshUrl || ''),
-      tex_url: (meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : '',
+      obj_url: objUrl,
+      mtl_url: mtlUrl,
+      tex_url: texUrl,
+      tdm_url: tdmUrl,
       thumbnail_url: inputImgUrl || '',
       category: analysis ? (analysis.category || '') : '',
       scale_mm: analysis ? (analysis.longest_mm || null) : null,
@@ -2568,13 +2589,19 @@ async function uploadImageToSupabase(dataUrl, filename) {
 
     // 버킷명이 포함된 전체 경로: meshes/inputs/xxx.png
     // filename에 이미 inputs/ or meshes/ 포함됨
+    // content-type 결정
+    let contentType = blob.type || 'application/octet-stream';
+    if (filename.endsWith('.3dm')) contentType = 'application/octet-stream';
+    else if (filename.endsWith('.obj') || filename.endsWith('.mtl')) contentType = 'text/plain';
+    else if (filename.endsWith('.png')) contentType = 'image/png';
+
     const uploadUrl = `${SUPABASE_URL}/storage/v1/object/meshes/${filename}`;
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${SUPABASE_KEY}`,
         'apikey': SUPABASE_KEY,
-        'Content-Type': blob.type || 'image/png',
+        'Content-Type': contentType,
         'x-upsert': 'true'
       },
       body: arrayBuffer
@@ -2746,7 +2773,9 @@ async function loadGallery() {
             </div>
             <div class="gallery-card-date">${row.username ? `👤 ${row.username} · ` : ""}${date}</div>
             <div class="gallery-card-actions">
+              ${row.tdm_url ? `<a href="${row.tdm_url}" download>⬇ .3dm</a>` : ''}
               ${objUrl ? `<a href="${objUrl}" download>⬇ OBJ</a>` : ''}
+              ${row.mtl_url ? `<a href="${row.mtl_url}" download>🎨 MTL</a>` : ''}
               ${texUrl ? `<a href="${texUrl}" download>🖼 텍스처</a>` : ''}
             </div>
           </div>
