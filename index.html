@@ -1692,16 +1692,27 @@ function optimizeGeometry(geomIn) {
       try {
         log(`SimplifyModifier 시작: faces ${Math.floor(curFaces)} → ${targetFaces} (verts ${vCount} -${removeCount})${hadColor ? ' [+vertex color remap]' : ''}`, 'info');
         const t0 = performance.now();
+
+        // vertex color가 있으면 SimplifyModifier가 내부에서 crash —
+        // simplify 전에 임시로 제거하고 완료 후 nearest-neighbor로 복원
+        const savedColor = hadColor ? inGeom.attributes.color : null;
+        if (hadColor) {
+          inGeom = inGeom.clone();
+          delete inGeom.attributes.color;
+        }
+
         const mod = new THREE.SimplifyModifier();
         const out = mod.modify(inGeom, removeCount);
         const dt = ((performance.now() - t0) / 1000).toFixed(1);
         const newFaces = out.index ? out.index.count/3 : out.attributes.position.count/3;
         log(`simplify 완료: ${Math.floor(newFaces)} faces (${dt}s)`, 'ok');
 
-        // SimplifyModifier drops non-position attributes. If we had vertex colors
-        // (texture bake), remap them by nearest-neighbor lookup from old positions.
-        if (hadColor && out.attributes.position) {
-          remapVertexAttribute(out, inGeom, 'color', 3);
+        // vertex color 복원 (nearest-neighbor remap)
+        if (savedColor && out.attributes.position) {
+          const srcForRemap = inGeom.clone();
+          srcForRemap.setAttribute('color', savedColor);
+          remapVertexAttribute(out, srcForRemap, 'color', 3);
+          log('vertex color remap 완료', 'ok');
         }
         g = out;
       } catch (e) {
