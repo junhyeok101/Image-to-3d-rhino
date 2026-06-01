@@ -611,25 +611,32 @@
           <summary style="color:var(--text); font-weight:500; font-size:13px;">⚙ 메쉬 최적화 옵션</summary>
           <div class="grid-3" style="margin-top:10px;">
             <div>
-              <label>최대 face 수</label>
-              <input id="targetFaces" type="number" min="100" step="500" value="5000" />
+              <label>압축 임계값 (face 수)</label>
+              <input id="targetFaces" type="number" min="1000" step="5000" value="100000"
+                title="이 수를 넘으면 아래 압축률로 줄임" />
             </div>
             <div>
-              <label>vertex 병합 거리</label>
-              <input id="mergeTol" type="number" min="0" step="0.0001" value="0.0001" />
+              <label>압축률 (임계값 초과 시)</label>
+              <select id="compressRatio">
+                <option value="0.9">10% 감소 (형태 최대 보존)</option>
+                <option value="0.7" selected>30% 감소 (권장)</option>
+                <option value="0.5">50% 감소</option>
+                <option value="0.3">70% 감소</option>
+                <option value="0.1">90% 감소 (매우 가벼움)</option>
+              </select>
             </div>
             <div>
               <label>적용</label>
               <select id="optMode">
-                <option value="auto" selected>자동 (초과시만)</option>
-                <option value="force">강제 감소</option>
-                <option value="merge-only">병합만</option>
+                <option value="auto" selected>자동 (임계값 초과시)</option>
+                <option value="force">강제 압축</option>
+                <option value="merge-only">vertex 병합만</option>
                 <option value="off">끔</option>
               </select>
             </div>
           </div>
           <div class="small" style="margin-top:6px;">
-            InstantMesh 출력은 보통 50k~150k face. Rhino에서 작업하려면 5k~20k 정도로 줄이는 게 좋습니다.
+            InstantMesh 출력은 보통 50k~150k face. 임계값을 넘으면 선택한 압축률로 줄입니다.
           </div>
         </details>
 
@@ -1656,8 +1663,9 @@ function bakeTextureToVertexColors(geom, image) {
 /* =========== Mesh optimization =========== */
 function optimizeGeometry(geomIn) {
   const optMode = document.getElementById('optMode').value;
-  const targetFaces = parseInt(document.getElementById('targetFaces').value) || 5000;
-  const mergeTol = parseFloat(document.getElementById('mergeTol').value);
+  const targetFaces = parseInt(document.getElementById('targetFaces').value) || 100000;
+  const compressRatio = parseFloat(document.getElementById('compressRatio').value) || 0.7;
+  const mergeTol = 0.001;
   if (optMode === 'off') return geomIn;
 
   let g = geomIn;
@@ -1682,13 +1690,15 @@ function optimizeGeometry(geomIn) {
   if (doDecimate) {
     try {
       const t0 = performance.now();
-      log(`Face 감소 시작: ${Math.floor(curFaces)} → ${targetFaces}`, 'info');
+      // 압축률 적용: 현재 face 수 × compressRatio 만큼 유지
+      const keepFaces = Math.floor(curFaces * compressRatio);
+      log(`Face 감소 시작: ${Math.floor(curFaces)} → ${keepFaces} (${Math.round(compressRatio*100)}% 유지)`, 'info');
 
       // non-indexed로 변환
       let src = g.index ? g.toNonIndexed() : g.clone();
-      const totalVerts = src.attributes.position.count; // 3 verts per face
+      const totalVerts = src.attributes.position.count;
       const totalFaces = totalVerts / 3;
-      const keepRatio = Math.min(1, targetFaces / totalFaces);
+      const keepRatio = Math.min(1, keepFaces / totalFaces);
 
       if (keepRatio < 1) {
         // uniform stride sampling — 매 N번째 face만 유지
@@ -1723,7 +1733,7 @@ function optimizeGeometry(geomIn) {
 
         const newFaces = out.attributes.position.count / 3;
         const dt = ((performance.now() - t0) / 1000).toFixed(1);
-        log(`Face 감소 완료: ${Math.floor(newFaces)} faces (${dt}s)`, 'ok');
+        log(`Face 감소 완료: ${Math.floor(newFaces)} faces (${dt}s) — ${Math.round((1-keepRatio)*100)}% 감소`, 'ok');
         g = out;
       }
     } catch (e) {
