@@ -883,13 +883,13 @@ function refreshLlmModels() {
     o.value = m.v; o.textContent = m.t;
     llmModelEl.appendChild(o);
   });
-  llmKeyEl.value = localStorage.getItem('llmKey_'+p) || '';
+  llmKeyEl.value = ''; // 보안상 자동입력 안 함
   setConnStatus('llmStatus', 'idle', '미연결');
 }
 llmProviderEl.addEventListener('change', refreshLlmModels);
 refreshLlmModels();
 
-meshKeyEl.value = localStorage.getItem('falKey') || '';
+meshKeyEl.value = ''; // 보안상 자동입력 안 함
 const meshUrlEl = document.getElementById('meshUrl');
 meshUrlEl.value = localStorage.getItem('meshUrl') || '';
 
