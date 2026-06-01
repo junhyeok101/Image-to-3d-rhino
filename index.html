@@ -2253,7 +2253,7 @@ async function runImageMode() {
   // ---- Supabase 갤러리 저장 ----
   try {
     const stem = `img_${Date.now()}`;
-    const inputImgUrl = await uploadImageToSupabase(currentImage.dataUrl, `meshes/${stem}_input.png`);
+    const inputImgUrl = await uploadImageToSupabase(currentImage.dataUrl, `inputs/${stem}_input.png`);
     const record = {
       input_image_url: inputImgUrl || '',
       obj_url: (meshUrl && typeof meshUrl === 'object') ? meshUrl.obj_url : (meshUrl || ''),
@@ -2561,10 +2561,15 @@ async function saveToSupabase(data) {
 
 async function uploadImageToSupabase(dataUrl, filename) {
   try {
+    // dataUrl → Blob
     const res = await fetch(dataUrl);
     const blob = await res.blob();
     const arrayBuffer = await blob.arrayBuffer();
-    const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${filename}`, {
+
+    // 버킷명이 포함된 전체 경로: meshes/inputs/xxx.png
+    // filename에 이미 inputs/ or meshes/ 포함됨
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/meshes/${filename}`;
+    const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -2576,12 +2581,14 @@ async function uploadImageToSupabase(dataUrl, filename) {
     });
     const uploadText = await uploadRes.text();
     if (uploadRes.ok) {
-      return `${SUPABASE_URL}/storage/v1/object/public/${filename}`;
+      const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/meshes/${filename}`;
+      log(`이미지 업로드 완료: ${filename}`, 'ok');
+      return publicUrl;
     } else {
-      log('이미지 업로드 응답: ' + uploadRes.status + ' ' + uploadText, 'warn');
+      log(`이미지 업로드 실패 ${uploadRes.status}: ${uploadText}`, 'warn');
     }
   } catch (e) {
-    log('이미지 업로드 실패: ' + e.message, 'warn');
+    log('이미지 업로드 에러: ' + e.message, 'warn');
   }
   return null;
 }

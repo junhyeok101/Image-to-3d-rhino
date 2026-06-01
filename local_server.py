@@ -378,14 +378,14 @@ def generate(body: GenerateBody):
         # Supabase 업로드
         sb_obj = sb_tex = ""
         if result.get("obj"):
-            sb_obj = upload_to_supabase(result["obj"], f"{stem}.obj", "text/plain")
+            sb_obj = upload_to_supabase(result["obj"], f"meshes/{stem}.obj", "text/plain")
             resp["obj_url"] = sb_obj or f"/files/{result['obj'].name}"
             resp["size_bytes"] = result["obj"].stat().st_size
         if result.get("mtl"):
-            upload_to_supabase(result["mtl"], f"{stem}.mtl", "text/plain")
+            upload_to_supabase(result["mtl"], f"meshes/{stem}.mtl", "text/plain")
             resp["mtl_url"] = (sb_obj.rsplit("/",1)[0] + f"/{stem}.mtl") if sb_obj else f"/files/{result['mtl'].name}"
         if result.get("tex"):
-            sb_tex = upload_to_supabase(result["tex"], f"{stem}.png", "image/png")
+            sb_tex = upload_to_supabase(result["tex"], f"meshes/{stem}.png", "image/png")
             resp["tex_url"] = sb_tex or f"/files/{result['tex'].name}"
 
         # Supabase DB 저장
