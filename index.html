@@ -923,8 +923,9 @@ document.getElementById('btnTestMesh').addEventListener('click', async () => {
     try {
       // Try /health endpoint first, fall back to GET on root
       const base = url.replace(/\/generate\/?$/,'');
-      let r = await fetch(base + '/health', { method: 'GET' }).catch(()=>null);
-      if (!r || !r.ok) r = await fetch(base, { method: 'GET' }).catch(()=>null);
+      const ngrokHeaders = { 'ngrok-skip-browser-warning': 'true' };
+      let r = await fetch(base + '/health', { method: 'GET', headers: ngrokHeaders }).catch(()=>null);
+      if (!r || !r.ok) r = await fetch(base, { method: 'GET', headers: ngrokHeaders }).catch(()=>null);
       if (r && r.ok) {
         setConnStatus('meshStatus','ok','로컬 서버 OK');
         log('로컬 서버 응답 OK', 'ok');
@@ -1257,7 +1258,7 @@ async function localImageTo3D(endpoint, imageDataUrl, onProgress) {
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
     body: JSON.stringify({ image_b64: b64, image_mime: mime, output_format: 'glb' })
   });
   if (!res.ok) throw new Error('local '+res.status+': '+(await res.text()));
@@ -2062,21 +2063,22 @@ async function runImageMode() {
     setStage('stageB','active','OBJ+MTL+텍스처 로드 중');
 
     // 1) OBJ 텍스트 fetch
-    const objRes = await fetch(meshUrl.obj_url);
+    const ngrok = { 'ngrok-skip-browser-warning': 'true' };
+    const objRes = await fetch(meshUrl.obj_url, { headers: ngrok });
     if (!objRes.ok) throw new Error('OBJ fetch 실패: ' + objRes.status);
     const objText = await objRes.text();
 
     // 2) MTL 텍스트 fetch
     let mtlText = null;
     if (meshUrl.mtl_url) {
-      const mtlRes = await fetch(meshUrl.mtl_url);
+      const mtlRes = await fetch(meshUrl.mtl_url, { headers: ngrok });
       if (mtlRes.ok) mtlText = await mtlRes.text();
     }
 
     // 3) 텍스처 fetch → blob URL
     let texBlobUrl = null;
     if (meshUrl.tex_url) {
-      const texRes = await fetch(meshUrl.tex_url);
+      const texRes = await fetch(meshUrl.tex_url, { headers: ngrok });
       if (texRes.ok) {
         const texBlob = await texRes.blob();
         texBlobUrl = URL.createObjectURL(texBlob);
