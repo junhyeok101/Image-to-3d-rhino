@@ -1676,49 +1676,58 @@ function optimizeGeometry(geomIn) {
   }
   if (optMode === 'merge-only') return g;
 
-  // Step 2: face decimation via SimplifyModifier
+  // Step 2: face decimation (uniform sampling — SimplifyModifier r128 버그 우회)
   const curFaces = g.index ? g.index.count/3 : g.attributes.position.count/3;
   const doDecimate = optMode === 'force' || (optMode === 'auto' && curFaces > targetFaces);
-  if (doDecimate && THREE.SimplifyModifier) {
-    // SimplifyModifier in r128 works on a non-indexed geometry. Convert if needed.
-    let inGeom = g;
-    if (inGeom.index) inGeom = inGeom.toNonIndexed();
-    const vCount = inGeom.attributes.position.count;
-    // For non-indexed: verts = 3 * faces. We need verts to be 3 * targetFaces.
-    const targetVForFaces = Math.max(60, targetFaces * 3);
-    const removeCount = Math.max(0, vCount - targetVForFaces);
-    const hadColor = !!inGeom.attributes.color;
-    if (removeCount > 0) {
-      try {
-        log(`SimplifyModifier 시작: faces ${Math.floor(curFaces)} → ${targetFaces} (verts ${vCount} -${removeCount})${hadColor ? ' [+vertex color remap]' : ''}`, 'info');
-        const t0 = performance.now();
+  if (doDecimate) {
+    try {
+      const t0 = performance.now();
+      log(`Face 감소 시작: ${Math.floor(curFaces)} → ${targetFaces}`, 'info');
 
-        // vertex color가 있으면 SimplifyModifier crash —
-        // simplify 전에 임시로 제거하고 완료 후 nearest-neighbor로 복원
-        const savedColor = hadColor ? inGeom.attributes.color : null;
-        const geomForSimplify = inGeom.clone();
-        if (hadColor) {
-          geomForSimplify.deleteAttribute('color');
-          geomForSimplify.deleteAttribute('uv');
+      // non-indexed로 변환
+      let src = g.index ? g.toNonIndexed() : g.clone();
+      const totalVerts = src.attributes.position.count; // 3 verts per face
+      const totalFaces = totalVerts / 3;
+      const keepRatio = Math.min(1, targetFaces / totalFaces);
+
+      if (keepRatio < 1) {
+        // uniform stride sampling — 매 N번째 face만 유지
+        const stride = Math.ceil(1 / keepRatio);
+        const attrs = src.attributes;
+        const attrNames = Object.keys(attrs);
+        const newArrays = {};
+        attrNames.forEach(name => {
+          newArrays[name] = [];
+        });
+
+        for (let f = 0; f < totalFaces; f += stride) {
+          const vi = f * 3;
+          for (let k = 0; k < 3; k++) {
+            attrNames.forEach(name => {
+              const attr = attrs[name];
+              const itemSize = attr.itemSize;
+              for (let c = 0; c < itemSize; c++) {
+                newArrays[name].push(attr.array[(vi + k) * itemSize + c]);
+              }
+            });
+          }
         }
 
-        const mod = new THREE.SimplifyModifier();
-        const out = mod.modify(geomForSimplify, removeCount);
+        const out = new THREE.BufferGeometry();
+        attrNames.forEach(name => {
+          const attr = attrs[name];
+          out.setAttribute(name, new THREE.BufferAttribute(
+            new Float32Array(newArrays[name]), attr.itemSize
+          ));
+        });
+
+        const newFaces = out.attributes.position.count / 3;
         const dt = ((performance.now() - t0) / 1000).toFixed(1);
-        const newFaces = out.index ? out.index.count/3 : out.attributes.position.count/3;
-        log(`simplify 완료: ${Math.floor(newFaces)} faces (${dt}s)`, 'ok');
-
-        // vertex color 복원 (nearest-neighbor remap)
-        if (savedColor && out.attributes.position) {
-          const srcForRemap = geomForSimplify.clone();
-          srcForRemap.setAttribute('color', savedColor);
-          remapVertexAttribute(out, srcForRemap, 'color', 3);
-          log('vertex color remap 완료', 'ok');
-        }
+        log(`Face 감소 완료: ${Math.floor(newFaces)} faces (${dt}s)`, 'ok');
         g = out;
-      } catch (e) {
-        log('simplify 실패: ' + e.message, 'warn');
       }
+    } catch (e) {
+      log('Face 감소 실패: ' + e.message, 'warn');
     }
   }
   return g;
