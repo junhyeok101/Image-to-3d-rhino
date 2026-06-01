@@ -44,6 +44,8 @@ try:
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import JSONResponse, Response
     from pydantic import BaseModel
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request as StarletteRequest
     import uvicorn
 except ImportError:
     print("Missing deps. Run: pip install fastapi uvicorn pillow numpy trimesh", file=sys.stderr)
@@ -269,6 +271,14 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=False,
 )
+
+class NgrokMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        response.headers["ngrok-skip-browser-warning"] = "true"
+        return response
+
+app.add_middleware(NgrokMiddleware)
 
 # Static mount for serving generated GLB files
 app.mount("/files", StaticFiles(directory=str(OUTPUT_DIR)), name="files")
