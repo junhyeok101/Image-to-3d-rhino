@@ -58,6 +58,11 @@ OUTPUT_DIR = ROOT / "_local_meshes"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 MODEL_KIND = os.environ.get("MODEL_KIND", "mock").lower()
+
+# Supabase 설정 (ENV 변수로 주입)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET", "meshes")
 DEVICE = os.environ.get("DEVICE", "cuda").lower()
 CKPT_DIR = os.environ.get("CKPT_DIR", str(ROOT / "checkpoints"))
 PORT = int(os.environ.get("PORT", "7860"))
@@ -242,6 +247,49 @@ def run_mock(pil_img: Image.Image, out_path: Path):
     return out_path
 
 
+# --------------------------------------------------------------------------- #
+#  Supabase 업로드                                                             #
+# --------------------------------------------------------------------------- #
+def upload_to_supabase(file_path: Path, dest_name: str, content_type: str = "application/octet-stream") -> str:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return ""
+    try:
+        import urllib.request
+        url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{dest_name}"
+        data = file_path.read_bytes()
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
+        req.add_header("Content-Type", content_type)
+        req.add_header("x-upsert", "true")
+        with urllib.request.urlopen(req, timeout=60) as r:
+            r.read()
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{dest_name}"
+        log.info(f"Supabase 업로드 완료: {public_url}")
+        return public_url
+    except Exception as e:
+        log.warning(f"Supabase 업로드 실패 ({e})")
+        return ""
+
+
+def save_to_supabase_db(record: dict):
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    try:
+        import urllib.request, json as _json
+        url = f"{SUPABASE_URL}/rest/v1/models"
+        data = _json.dumps(record).encode()
+        req = urllib.request.Request(url, data=data, method="POST")
+        req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
+        req.add_header("apikey", SUPABASE_KEY)
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Prefer", "return=minimal")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            r.read()
+        log.info("Supabase DB 저장 완료")
+    except Exception as e:
+        log.warning(f"Supabase DB 저장 실패: {e}")
+
+
 def generate_mesh(pil_img: Image.Image):
     """Returns Path (mock/triposr) or dict {obj, mtl, tex} (instantmesh)."""
     model = get_model()
@@ -325,17 +373,38 @@ def generate(body: GenerateBody):
     # Build response — instantmesh returns dict {obj, mtl, tex}; others return a Path
     if isinstance(result, dict):
         resp = {"model_kind": MODEL_KIND}
+        stem = result["obj"].stem if result.get("obj") else ""
+
+        # Supabase 업로드
+        sb_obj = sb_tex = ""
         if result.get("obj"):
-            resp["obj_url"] = f"/files/{result['obj'].name}"
+            sb_obj = upload_to_supabase(result["obj"], f"{stem}.obj", "text/plain")
+            resp["obj_url"] = sb_obj or f"/files/{result['obj'].name}"
             resp["size_bytes"] = result["obj"].stat().st_size
         if result.get("mtl"):
-            resp["mtl_url"] = f"/files/{result['mtl'].name}"
+            upload_to_supabase(result["mtl"], f"{stem}.mtl", "text/plain")
+            resp["mtl_url"] = (sb_obj.rsplit("/",1)[0] + f"/{stem}.mtl") if sb_obj else f"/files/{result['mtl'].name}"
         if result.get("tex"):
-            resp["tex_url"] = f"/files/{result['tex'].name}"
+            sb_tex = upload_to_supabase(result["tex"], f"{stem}.png", "image/png")
+            resp["tex_url"] = sb_tex or f"/files/{result['tex'].name}"
+
+        # Supabase DB 저장
+        save_to_supabase_db({
+            "obj_url": sb_obj or resp.get("obj_url", ""),
+            "tex_url": sb_tex or resp.get("tex_url", ""),
+            "thumbnail_url": sb_tex or resp.get("tex_url", ""),
+            "model_kind": MODEL_KIND,
+        })
         return JSONResponse(resp)
     else:
         public_url = f"/files/{result.name}"
-        return JSONResponse({"mesh_url": public_url, "size_bytes": result.stat().st_size, "model_kind": MODEL_KIND})
+        # GLB도 Supabase에 업로드
+        sb_url = upload_to_supabase(result, result.name, "model/gltf-binary")
+        save_to_supabase_db({
+            "obj_url": sb_url or public_url,
+            "model_kind": MODEL_KIND,
+        })
+        return JSONResponse({"mesh_url": sb_url or public_url, "size_bytes": result.stat().st_size, "model_kind": MODEL_KIND})
 
 
 # --------------------------------------------------------------------------- #

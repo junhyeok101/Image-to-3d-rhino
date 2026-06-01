@@ -314,6 +314,38 @@
   }
   .file-slot.filled .slot-filename { color: var(--text); }
   .slot-btn { padding: 6px 12px !important; font-size: 12px !important; flex-shrink: 0; }
+
+  /* === Nav tabs === */
+  .nav-tab {
+    background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent;
+    padding: 14px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 0;
+    transition: all 0.2s; font-family: inherit;
+  }
+  .nav-tab:hover:not(:disabled) { color: var(--text); background: transparent; transform: none; }
+  .nav-tab.on { color: #fff; border-bottom-color: #fff; }
+
+  /* === Gallery cards === */
+  .gallery-card {
+    background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; transition: all 0.3s; cursor: pointer;
+  }
+  .gallery-card:hover { border-color: #404040; transform: translateY(-2px); }
+  .gallery-thumb {
+    width: 100%; height: 200px; object-fit: cover; background: #141414;
+    display: block;
+  }
+  .gallery-thumb-placeholder {
+    width: 100%; height: 200px; background: #141414;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; color: var(--muted);
+  }
+  .gallery-card-body { padding: 14px 16px; }
+  .gallery-card-date { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .gallery-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .gallery-card-actions a { flex: 1; text-align: center; padding: 7px; font-size: 12px; font-weight: 600;
+    background: #141414; border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    text-decoration: none; transition: all 0.2s; }
+  .gallery-card-actions a:hover { border-color: #fff; background: #1a1a1a; }
 </style>
 </head>
 <body>
@@ -347,7 +379,14 @@
   </div>
 </header>
 
-<main>
+<nav style="border-bottom:1px solid #262626; background:#000; position:sticky; top:0; z-index:100;">
+  <div style="max-width:1400px; margin:0 auto; padding:0 32px; display:flex; gap:4px;">
+    <button class="nav-tab on" data-tab="pipeline" onclick="switchTab('pipeline')">🔧 파이프라인</button>
+    <button class="nav-tab" data-tab="gallery" onclick="switchTab('gallery')">🖼 갤러리</button>
+  </div>
+</nav>
+
+<div id="pipelineTab"><main>
 
   <!-- Pipeline visualization -->
   <div class="pipeline-vis">
@@ -422,7 +461,12 @@
         <!-- Local server URL field -->
         <div id="meshUrlWrap" style="margin-top:10px;">
           <label>로컬 서버 엔드포인트</label>
-          <input id="meshUrl" type="text" value="http://localhost:7860/generate" />
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="meshUrl" type="text" placeholder="예: https://xxxx.ngrok-free.dev/generate" style="flex:1;" />
+            <button class="secondary" style="padding:8px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;"
+              onclick="navigator.clipboard.writeText(document.getElementById('meshUrl').value).then(()=>{this.textContent='✓ 복사됨';setTimeout(()=>this.textContent='복사',1500)})">복사</button>
+          </div>
+
         </div>
 
         <div class="row" style="margin-top:8px;">
@@ -434,6 +478,19 @@
           로컬: WSL에서 <code>python local_server.py</code> 실행 (TripoSR/InstantMesh).<br/>
           fal.ai 키 발급: <a href="https://fal.ai/dashboard/keys" target="_blank" style="color:var(--accent)">fal.ai/dashboard/keys</a>
         </div>
+      </div>
+
+      <!-- 갤러리 이름 -->
+      <div class="conn-panel" style="margin-top:16px;">
+        <div class="head"><h3>👤 갤러리 이름 <span class="badge">선택</span></h3>
+          <span id="usernameStatus" class="status idle"><span class="dot"></span>미설정</span>
+        </div>
+        <div>
+          <label>이름 (갤러리에 표시됩니다)</label>
+          <input id="usernameInput" type="text" placeholder="입력 안 하면 익명으로 저장" maxlength="20"
+            oninput="confirmUsername()" />
+        </div>
+        <div class="small" style="margin-top:6px;">이름을 입력하면 갤러리에 생성자 이름이 표시됩니다.</div>
       </div>
 
     </div>
@@ -631,6 +688,34 @@
     </div>
   </section>
 
+
+</div>
+
+  <!-- ===== 3D 뷰어 모달 ===== -->
+  <div id="modelViewerModal" class="hidden" style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div style="width:90vw;max-width:900px;background:#0a0a0a;border:1px solid #262626;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;max-height:90vh;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #262626;">
+        <span id="modalViewerTitle" style="font-size:15px;font-weight:700;color:#fff;"></span>
+        <button id="modalClose" style="background:transparent;border:1px solid #262626;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;">✕ 닫기</button>
+      </div>
+      <div id="modalViewerContainer" style="width:100%;height:500px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== GALLERY TAB ===== -->
+  <section id="galleryTab" class="hidden" style="padding:32px;">
+    <div style="max-width:1400px; margin:0 auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 style="margin:0; font-size:20px; font-weight:700;">생성된 3D 모델 갤러리</h2>
+        <button class="secondary" onclick="loadGallery()">🔄 새로고침</button>
+      </div>
+      <div id="galleryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px;">
+        <div style="color:var(--muted); font-size:14px; padding:40px; text-align:center; grid-column:1/-1;">
+          로딩 중...
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <!-- Libraries -->
@@ -806,7 +891,7 @@ refreshLlmModels();
 
 meshKeyEl.value = localStorage.getItem('falKey') || '';
 const meshUrlEl = document.getElementById('meshUrl');
-meshUrlEl.value = localStorage.getItem('meshUrl') || 'http://localhost:7860/generate';
+meshUrlEl.value = localStorage.getItem('meshUrl') || '';
 
 // Toggle UI based on selected mesh provider
 function refreshMeshUI() {
@@ -1854,7 +1939,8 @@ async function processMeshGeometries(loadedMeshes, textureImage = null) {
   const totalFaces = finalGeoms.reduce((s,g) => s + (g.index ? g.index.count/3 : g.attributes.position.count/3), 0);
   const totalVerts = finalGeoms.reduce((s,g) => s + g.attributes.position.count, 0);
   document.getElementById('meshStats').textContent = `${totalVerts.toLocaleString()} / ${Math.floor(totalFaces).toLocaleString()}`;
-  return { byteLength: arr.byteLength, faces: Math.floor(totalFaces) };
+  const bboxText = document.getElementById('bbox').textContent;
+  return { byteLength: arr.byteLength, faces: Math.floor(totalFaces), bbox: bboxText };
 }
 
 function buildOptimizedPreview(geoms) {
@@ -2163,6 +2249,27 @@ async function runImageMode() {
   if (textureForBake) {
     log('💡 Rhino에서 색이 안 보이면: 표시모드를 "음영처리(Shaded)" 또는 "렌더링됨(Rendered)"로 변경', 'info');
   }
+
+  // ---- Supabase 갤러리 저장 ----
+  try {
+    const stem = `img_${Date.now()}`;
+    const inputImgUrl = await uploadImageToSupabase(currentImage.dataUrl, `meshes/${stem}_input.png`);
+    const record = {
+      input_image_url: inputImgUrl || '',
+      obj_url: (meshUrl && typeof meshUrl === 'object') ? meshUrl.obj_url : (meshUrl || ''),
+      tex_url: (meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : '',
+      thumbnail_url: inputImgUrl || ((meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : ''),
+      category: analysis ? (analysis.category || '') : '',
+      scale_mm: analysis ? (analysis.longest_mm || null) : null,
+      bbox: result.bbox || '',
+      model_kind: meshModelEl.value,
+      username: currentUsername || null,
+    };
+    await saveToSupabase(record);
+  } catch (e) {
+    log('갤러리 저장 스킵: ' + e.message, 'warn');
+  }
+
   log('==== 완료 ====', 'stage');
 }
 
@@ -2401,6 +2508,246 @@ function mkSpline(points, closed, mat) {
   const curve = new THREE.CatmullRomCurve3(v, closed);
   const pts = curve.getPoints(Math.max(64, v.length*8));
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+}
+
+/* =========== Gallery & Tab =========== */
+let currentUsername = localStorage.getItem('username') || '';
+
+function confirmUsername() {
+  const val = document.getElementById('usernameInput').value.trim();
+  currentUsername = val;
+  const statusEl = document.getElementById('usernameStatus');
+  if (val) {
+    localStorage.setItem('username', val);
+    statusEl.className = 'status ok';
+    statusEl.innerHTML = '<span class="dot"></span>' + val;
+  } else {
+    localStorage.removeItem('username');
+    statusEl.className = 'status idle';
+    statusEl.innerHTML = '<span class="dot"></span>미설정';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (currentUsername) {
+    document.getElementById('usernameInput').value = currentUsername;
+    const statusEl = document.getElementById('usernameStatus');
+    statusEl.className = 'status ok';
+    statusEl.innerHTML = '<span class="dot"></span>' + currentUsername;
+  }
+});
+
+const SUPABASE_URL = 'https://illtukzqzfgeqkzsnsgc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsbHR1a3pxemZnZXFrenNuc2djIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTc2MDIsImV4cCI6MjA5NTg3MzYwMn0.61C3hn6PugxR3zZ22geGbSzXwkMLtTxTNlIVqy6exUA';
+
+async function saveToSupabase(data) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/models`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(data)
+    });
+    if (res.ok) log('✅ Supabase 갤러리 저장 완료', 'ok');
+    else log('Supabase 저장 실패: ' + res.status, 'warn');
+  } catch (e) {
+    log('Supabase 저장 에러: ' + e.message, 'warn');
+  }
+}
+
+async function uploadImageToSupabase(dataUrl, filename) {
+  try {
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${filename}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': blob.type || 'image/png',
+        'x-upsert': 'true'
+      },
+      body: arrayBuffer
+    });
+    const uploadText = await uploadRes.text();
+    if (uploadRes.ok) {
+      return `${SUPABASE_URL}/storage/v1/object/public/${filename}`;
+    } else {
+      log('이미지 업로드 응답: ' + uploadRes.status + ' ' + uploadText, 'warn');
+    }
+  } catch (e) {
+    log('이미지 업로드 실패: ' + e.message, 'warn');
+  }
+  return null;
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('on'));
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('on');
+  document.getElementById('pipelineTab').classList.toggle('hidden', tab !== 'pipeline');
+  document.getElementById('galleryTab').classList.toggle('hidden', tab !== 'gallery');
+  if (tab === 'gallery') loadGallery();
+}
+
+async function likeModel(id, currentLikes, btn) {
+  const newLikes = (currentLikes || 0) + 1;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/models?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ likes: newLikes })
+    });
+    btn.innerHTML = `❤️ ${newLikes}`;
+    btn.style.color = '#ef4444';
+    btn.disabled = true;
+  } catch (e) { console.error(e); }
+}
+
+function openModelViewer(objUrl, texUrl, title) {
+  const modal = document.getElementById('modelViewerModal');
+  const container = document.getElementById('modalViewerContainer');
+  const titleEl = document.getElementById('modalViewerTitle');
+  titleEl.textContent = title || '3D 미리보기';
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+
+  // Three.js 뷰어 초기화
+  container.innerHTML = '';
+  const w = container.clientWidth, h = container.clientHeight;
+  const mScene = new THREE.Scene();
+  mScene.background = new THREE.Color(0x0a0a0a);
+  const mCam = new THREE.PerspectiveCamera(45, w/h, 0.01, 100000);
+  mCam.position.set(150, 150, 150);
+  const mRenderer = new THREE.WebGLRenderer({ antialias: true });
+  mRenderer.setSize(w, h);
+  mRenderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(mRenderer.domElement);
+  const mControls = new THREE.OrbitControls(mCam, mRenderer.domElement);
+  mScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+  dl.position.set(100, 200, 150);
+  mScene.add(dl);
+  mScene.add(new THREE.GridHelper(300, 30, 0x262626, 0x141414));
+
+  // OBJ 로드
+  if (objUrl) {
+    fetch(objUrl, { headers: { 'ngrok-skip-browser-warning': 'true' } })
+      .then(r => r.text())
+      .then(async objText => {
+        let group;
+        if (texUrl) {
+          const texRes = await fetch(texUrl, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+          const texBlob = await texRes.blob();
+          const texBlobUrl = URL.createObjectURL(texBlob);
+          const texName = texUrl.split('/').pop().toLowerCase();
+          const manager = new THREE.LoadingManager();
+          manager.setURLModifier(u => {
+            const base = u.split(/[\/]/).pop().toLowerCase().split('?')[0];
+            return base === texName ? texBlobUrl : u;
+          });
+          const mtlUrl2 = objUrl.replace(/\.obj$/, '.mtl');
+          try {
+            const mtlRes = await fetch(mtlUrl2, { headers: { 'ngrok-skip-browser-warning': 'true' } });
+            if (mtlRes.ok) {
+              const mtlText = await mtlRes.text();
+              const mtlLoader = new THREE.MTLLoader(manager);
+              mtlLoader.setResourcePath('');
+              const mats = mtlLoader.parse(mtlText, '');
+              mats.preload();
+              const objLoader = new THREE.OBJLoader(manager);
+              objLoader.setMaterials(mats);
+              group = objLoader.parse(objText);
+            }
+          } catch (_) {}
+        }
+        if (!group) {
+          group = new THREE.OBJLoader().parse(objText);
+        }
+        group.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(group);
+        const center = new THREE.Vector3();
+        bbox.getCenter(center);
+        const size = new THREE.Vector3();
+        bbox.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z, 1);
+        mCam.position.set(center.x + maxDim*1.8, center.y + maxDim*1.8, center.z + maxDim*1.8);
+        mControls.target.copy(center);
+        mScene.add(group);
+      }).catch(e => console.error('OBJ 로드 실패:', e));
+  }
+
+  let animId;
+  (function animate() { animId = requestAnimationFrame(animate); mControls.update(); mRenderer.render(mScene, mCam); })();
+
+  // 닫기
+  document.getElementById('modalClose').onclick = () => {
+    cancelAnimationFrame(animId);
+    mRenderer.dispose();
+    container.innerHTML = '';
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  };
+}
+
+async function loadGallery() {
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">로딩 중...</div>';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/models?order=created_at.desc&limit=50`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!res.ok) throw new Error('DB 조회 실패: ' + res.status);
+    const rows = await res.json();
+    if (!rows.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">아직 생성된 모델이 없어요. 파이프라인에서 이미지를 실행해보세요!</div>';
+      return;
+    }
+    grid.innerHTML = rows.map(row => {
+      const date = new Date(row.created_at).toLocaleString('ko-KR');
+      const thumb = row.input_image_url || row.thumbnail_url;
+      const thumbHtml = thumb
+        ? `<img class="gallery-thumb" src="${thumb}" alt="thumbnail" loading="lazy" onerror="this.style.display='none'">`
+        : `<div class="gallery-thumb-placeholder">🧊</div>`;
+      const category = row.category ? `<span style="font-size:12px;font-weight:600;color:var(--text);">${row.category}</span>` : '';
+      const bbox = row.bbox ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;">📐 ${row.bbox} mm</div>` : '';
+      const scaleMm = row.scale_mm ? `<div style="font-size:11px;color:var(--muted);">📏 ${row.scale_mm}mm</div>` : '';
+      const likes = row.likes || 0;
+      const objUrl = row.obj_url || '';
+      const texUrl = row.tex_url || '';
+      return `
+        <div class="gallery-card">
+          <div style="position:relative;cursor:pointer;" onclick="openModelViewer('${objUrl}','${texUrl}','${row.category||'3D 모델'}')">
+            ${thumbHtml}
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;background:rgba(0,0,0,0.5);border-radius:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
+              <span style="font-size:28px;">▶</span>
+            </div>
+          </div>
+          <div class="gallery-card-body">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+              <div>${category}${bbox}${scaleMm}</div>
+              <button onclick="likeModel(${row.id},${likes},this)" style="background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:0;">🤍 ${likes}</button>
+            </div>
+            <div class="gallery-card-date">${row.username ? `👤 ${row.username} · ` : ""}${date}</div>
+            <div class="gallery-card-actions">
+              ${objUrl ? `<a href="${objUrl}" download>⬇ OBJ</a>` : ''}
+              ${texUrl ? `<a href="${texUrl}" download>🖼 텍스처</a>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    grid.innerHTML = `<div style="color:var(--err);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">갤러리 로드 실패: ${e.message}</div>`;
+  }
 }
 
 /* =========== Boot =========== */
