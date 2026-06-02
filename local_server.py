@@ -271,6 +271,7 @@ def upload_to_supabase(file_path: Path, dest_name: str, content_type: str = "app
         data = file_path.read_bytes()
         req = urllib.request.Request(url, data=data, method="POST")
         req.add_header("Authorization", f"Bearer {SUPABASE_KEY}")
+        req.add_header("apikey", SUPABASE_KEY)
         req.add_header("Content-Type", content_type)
         req.add_header("x-upsert", "true")
         with urllib.request.urlopen(req, timeout=60) as r:
