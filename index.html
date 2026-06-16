@@ -23,7 +23,6 @@
     overflow: hidden;
     isolation: isolate;
   }
-  /* animated grid backdrop */
   header::before {
     content: '';
     position: absolute; inset: 0;
@@ -35,7 +34,6 @@
     -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 80%);
     z-index: -2;
   }
-  /* radial glow */
   header::after {
     content: '';
     position: absolute;
@@ -144,7 +142,6 @@
   .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
   @media (max-width: 860px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
-  /* === Dropzone (이미지 업로드 영역) === */
   .dropzone {
     border: 2px dashed var(--border);
     border-radius: 12px;
@@ -172,7 +169,6 @@
     border-radius: 8px;
   }
 
-  /* === 3D Viewer (Three.js 캔버스 컨테이너) === */
   #viewer {
     width: 100%;
     height: 460px;
@@ -257,7 +253,6 @@
   .switch button:hover:not(.on) { background: transparent; color: var(--text); transform: none; }
   .switch button.on { background: #fff; color: #000; }
 
-  /* === File slots (OBJ mode) === */
   .file-slots {
     display: grid;
     grid-template-columns: 1fr;
@@ -315,7 +310,6 @@
   .file-slot.filled .slot-filename { color: var(--text); }
   .slot-btn { padding: 6px 12px !important; font-size: 12px !important; flex-shrink: 0; }
 
-  /* === Nav tabs === */
   .nav-tab {
     background: transparent; color: var(--muted); border: none; border-bottom: 2px solid transparent;
     padding: 14px 20px; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 0;
@@ -324,7 +318,6 @@
   .nav-tab:hover:not(:disabled) { color: var(--text); background: transparent; transform: none; }
   .nav-tab.on { color: #fff; border-bottom-color: #fff; }
 
-  /* === Gallery cards === */
   .gallery-card {
     background: #0a0a0a; border: 1px solid var(--border); border-radius: 12px;
     overflow: hidden; transition: all 0.3s; cursor: pointer;
@@ -341,11 +334,37 @@
   }
   .gallery-card-body { padding: 14px 16px; }
   .gallery-card-date { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
-  .gallery-card-actions { display: flex; gap: 8px; margin-top: 10px; }
-  .gallery-card-actions a { flex: 1; text-align: center; padding: 7px; font-size: 12px; font-weight: 600;
+  .gallery-card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .gallery-card-actions a { flex: 1; min-width: 60px; text-align: center; padding: 7px; font-size: 12px; font-weight: 600;
     background: #141414; border: 1px solid var(--border); border-radius: 6px; color: var(--text);
     text-decoration: none; transition: all 0.2s; }
   .gallery-card-actions a:hover { border-color: #fff; background: #1a1a1a; }
+
+  /* === Diagnostic empty state === */
+  .empty-diag {
+    grid-column: 1/-1;
+    background: #0a0a0a;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    text-align: left;
+  }
+  .empty-diag h3 { margin: 0 0 12px; font-size: 17px; color: var(--text); }
+  .empty-diag p { margin: 0 0 12px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+  .empty-diag pre {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: #d4d4d4;
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+  .empty-diag .lbl { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; margin-right: 6px; }
+  .empty-diag .lbl-err { background: rgba(239,68,68,0.15); color: var(--err); }
+  .empty-diag .lbl-warn { background: rgba(245,158,11,0.15); color: var(--warn); }
 </style>
 </head>
 <body>
@@ -388,7 +407,6 @@
 
 <div id="pipelineTab"><main>
 
-  <!-- Pipeline visualization -->
   <div class="pipeline-vis">
     <span class="step-box">이미지 입력</span>
     <span class="arrow">→</span>
@@ -401,12 +419,10 @@
     <span class="step-box">.3dm 다운로드</span>
   </div>
 
-  <!-- STEP 1: API connections -->
   <section class="card">
     <h2><span class="step-num">1</span>API 연결</h2>
     <div class="grid-2">
 
-      <!-- LLM provider -->
       <div class="conn-panel">
         <div class="head"><h3>Vision LLM <span class="badge">선택</span></h3>
           <span id="llmStatus" class="status idle"><span class="dot"></span>미연결</span></div>
@@ -436,7 +452,6 @@
         <div class="small">이미지에서 카테고리와 실제 치수(mm)를 추정하여 메쉬 스케일링에 사용합니다.</div>
       </div>
 
-      <!-- Image-to-3D provider -->
       <div class="conn-panel">
         <div class="head"><h3>Image → 3D 모델 <span class="badge">필수</span></h3>
           <span id="meshStatus" class="status idle"><span class="dot"></span>미연결</span></div>
@@ -452,13 +467,11 @@
           </select>
         </div>
 
-        <!-- fal.ai key field -->
         <div id="meshKeyWrap" class="hidden" style="margin-top:10px;">
           <label>fal.ai API Key</label>
           <input id="meshKey" type="password" placeholder="xxxxxxxx-xxxx-xxxx-..." />
         </div>
 
-        <!-- Local server URL field -->
         <div id="meshUrlWrap" style="margin-top:10px;">
           <label>로컬 서버 엔드포인트</label>
           <div style="display:flex;gap:8px;align-items:center;">
@@ -466,7 +479,6 @@
             <button class="secondary" style="padding:8px 12px;font-size:12px;white-space:nowrap;flex-shrink:0;"
               onclick="navigator.clipboard.writeText(document.getElementById('meshUrl').value).then(()=>{this.textContent='✓ 복사됨';setTimeout(()=>this.textContent='복사',1500)})">복사</button>
           </div>
-
         </div>
 
         <div class="row" style="margin-top:8px;">
@@ -480,7 +492,6 @@
         </div>
       </div>
 
-      <!-- 갤러리 이름 -->
       <div class="conn-panel" style="margin-top:16px;">
         <div class="head"><h3>👤 갤러리 이름 <span class="badge">선택</span></h3>
           <span id="usernameStatus" class="status idle"><span class="dot"></span>미설정</span>
@@ -496,13 +507,11 @@
     </div>
   </section>
 
-  <!-- STEP 2: Input -->
   <section class="card">
     <h2><span class="step-num">2</span>입력</h2>
     <div class="grid-2">
       <div>
 
-        <!-- IMAGE dropzone (image / text modes) -->
         <div id="imageDropzoneWrap">
           <label>이미지 (Image→3D 모드 필수)</label>
           <div class="dropzone" id="dropzone">
@@ -519,7 +528,6 @@
           </div>
         </div>
 
-        <!-- OBJ/GLB direct upload (obj mode) -->
         <div id="objDropzoneWrap" class="hidden">
           <label>메쉬 + 텍스처 직접 업로드</label>
           <div class="dropzone" id="objDropzone">
@@ -535,7 +543,6 @@
           </div>
           <input type="file" id="objFileInput" accept=".obj,.glb,.gltf,.ply,.mtl,.png,.jpg,.jpeg,.webp" class="hidden" multiple />
 
-          <!-- Explicit file slots — 각 슬롯별로 상태가 명확하게 보임 -->
           <div class="file-slots">
             <div class="file-slot" id="slotMesh" data-slot="mesh">
               <div class="slot-head">
@@ -647,7 +654,6 @@
     </div>
   </section>
 
-  <!-- STEP 3: Pipeline stages -->
   <section class="card">
     <h2><span class="step-num">3</span>처리 파이프라인</h2>
     <div class="stage-track">
@@ -666,7 +672,6 @@
     </div>
   </section>
 
-  <!-- STEP 4: Output -->
   <section class="card">
     <h2><span class="step-num">4</span>출력</h2>
     <div class="grid-2">
@@ -698,7 +703,6 @@
 
 </div>
 
-  <!-- ===== 3D 뷰어 모달 ===== -->
   <div id="modelViewerModal" class="hidden" style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;">
     <div style="width:90vw;max-width:900px;background:#0a0a0a;border:1px solid #262626;border-radius:16px;overflow:hidden;display:flex;flex-direction:column;max-height:90vh;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #262626;">
@@ -709,12 +713,14 @@
     </div>
   </div>
 
-  <!-- ===== GALLERY TAB ===== -->
   <section id="galleryTab" class="hidden" style="padding:32px;">
     <div style="max-width:1400px; margin:0 auto;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
         <h2 style="margin:0; font-size:20px; font-weight:700;">생성된 3D 모델 갤러리</h2>
-        <button class="secondary" onclick="loadGallery()">🔄 새로고침</button>
+        <div style="display:flex; gap:8px;">
+          <button class="secondary" onclick="diagnoseGallery()">🔧 진단</button>
+          <button class="secondary" onclick="loadGallery()">🔄 새로고침</button>
+        </div>
       </div>
       <div id="galleryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px;">
         <div style="color:var(--muted); font-size:14px; padding:40px; text-align:center; grid-column:1/-1;">
@@ -725,7 +731,6 @@
   </section>
 </main>
 
-<!-- Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
@@ -890,22 +895,20 @@ function refreshLlmModels() {
     o.value = m.v; o.textContent = m.t;
     llmModelEl.appendChild(o);
   });
-  llmKeyEl.value = ''; // 보안상 자동입력 안 함
+  llmKeyEl.value = '';
   setConnStatus('llmStatus', 'idle', '미연결');
 }
 llmProviderEl.addEventListener('change', refreshLlmModels);
 refreshLlmModels();
 
-meshKeyEl.value = ''; // 보안상 자동입력 안 함
+meshKeyEl.value = '';
 const meshUrlEl = document.getElementById('meshUrl');
 meshUrlEl.value = localStorage.getItem('meshUrl') || '';
 
-// Toggle UI based on selected mesh provider
 function refreshMeshUI() {
   const isLocal = meshModelEl.value === 'local-server';
   document.getElementById('meshKeyWrap').classList.toggle('hidden', isLocal);
   document.getElementById('meshUrlWrap').classList.toggle('hidden', !isLocal);
-  // For local mode we don't need a key — show ready state if URL is set
   if (isLocal) {
     setConnStatus('meshStatus', meshUrlEl.value ? 'ok' : 'idle', meshUrlEl.value ? '로컬 준비' : 'URL 필요');
   } else {
@@ -916,7 +919,6 @@ meshModelEl.addEventListener('change', refreshMeshUI);
 meshUrlEl.addEventListener('input', () => {
   if (meshModelEl.value === 'local-server') refreshMeshUI();
 });
-// Initial state
 setTimeout(refreshMeshUI, 0);
 
 function setConnStatus(id, kind, msg) {
@@ -935,14 +937,12 @@ function updateRunButton() {
   if (mode === 'image') {
     runBtn.disabled = !(meshOk || (isLocal && localUrlSet));
   } else if (mode === 'obj') {
-    // OBJ direct: only requires uploaded mesh file, no API needed
     runBtn.disabled = !currentBundle.meshFile;
   } else {
     runBtn.disabled = !llmOk;
   }
 }
 
-/* =========== Save / Clear keys =========== */
 document.getElementById('btnSaveLlm').addEventListener('click', () => {
   localStorage.setItem('llmKey_'+llmProviderEl.value, llmKeyEl.value);
   log('LLM API 키 저장', 'ok');
@@ -976,7 +976,6 @@ document.getElementById('btnClearMesh').addEventListener('click', () => {
   }
 });
 
-/* =========== Mode switch =========== */
 document.getElementById('modeSwitch').addEventListener('click', e => {
   const b = e.target.closest('button[data-mode]'); if (!b) return;
   document.querySelectorAll('#modeSwitch button').forEach(x => x.classList.remove('on'));
@@ -989,7 +988,6 @@ document.getElementById('modeSwitch').addEventListener('click', e => {
   updateRunButton();
 });
 
-/* =========== Test connections =========== */
 document.getElementById('btnTestLlm').addEventListener('click', async () => {
   const provider = llmProviderEl.value;
   const key = llmKeyEl.value.trim();
@@ -1007,13 +1005,11 @@ document.getElementById('btnTestLlm').addEventListener('click', async () => {
 });
 
 document.getElementById('btnTestMesh').addEventListener('click', async () => {
-  // Local-server test
   if (meshModelEl.value === 'local-server') {
     const url = meshUrlEl.value.trim();
     if (!url) { setConnStatus('meshStatus','err','URL 없음'); return; }
     setConnStatus('meshStatus','warn','로컬 서버 확인...');
     try {
-      // Try /health endpoint first, fall back to GET on root
       const base = url.replace(/\/generate\/?$/,'');
       const ngrokHeaders = { 'ngrok-skip-browser-warning': 'true' };
       let r = await fetch(base + '/health', { method: 'GET', headers: ngrokHeaders }).catch(()=>null);
@@ -1032,7 +1028,6 @@ document.getElementById('btnTestMesh').addEventListener('click', async () => {
     }
     return;
   }
-  // fal.ai test
   const key = meshKeyEl.value.trim();
   if (!key) { setConnStatus('meshStatus','err','API 키 없음'); return; }
   setConnStatus('meshStatus','warn','테스트 중...');
@@ -1148,9 +1143,7 @@ const objDropzoneText = document.getElementById('objDropzoneText');
 const objDropzoneLoaded = document.getElementById('objDropzoneLoaded');
 const slotPicker = document.getElementById('slotPicker');
 
-// === Drag & drop on the big dropzone (still works for bulk drop) ===
 objDropzone.addEventListener('click', e => {
-  // 클릭으로 picker 열기 — 단, 슬롯 안의 버튼 클릭일 때는 무시
   if (e.target.closest('.file-slot') || e.target.closest('.slot-btn')) return;
   objFileInput.click();
 });
@@ -1159,26 +1152,23 @@ objFileInput.addEventListener('change', e => handleObjFiles(Array.from(e.target.
 ['dragleave','drop'].forEach(ev => objDropzone.addEventListener(ev, e => { e.preventDefault(); objDropzone.classList.remove('drag'); }));
 objDropzone.addEventListener('drop', e => { if (e.dataTransfer.files && e.dataTransfer.files.length) handleObjFiles(Array.from(e.dataTransfer.files)); });
 
-// === Per-slot "파일 선택" buttons ===
-// 각 슬롯의 버튼이 자기 타입에 맞는 picker를 띄움.
 let _slotPickerTarget = null;
 document.querySelectorAll('.slot-btn').forEach(btn => {
   btn.addEventListener('click', e => {
-    e.stopPropagation(); // dropzone 클릭 핸들러 막기
+    e.stopPropagation();
     const accept = btn.dataset.accept || '';
     const target = btn.dataset.target;
     const multiple = btn.dataset.multiple === 'true';
     _slotPickerTarget = target;
     slotPicker.accept = accept;
     slotPicker.multiple = multiple;
-    slotPicker.value = '';   // 같은 파일 다시 선택 가능하게
+    slotPicker.value = '';
     slotPicker.click();
   });
 });
 slotPicker.addEventListener('change', e => {
   const files = Array.from(e.target.files);
   if (!files.length) return;
-  // 슬롯 타입별로 분배 (handleObjFiles와 동일한 분류 사용)
   handleObjFiles(files);
 });
 
@@ -1198,12 +1188,7 @@ function fmtSize(bytes) {
   return (bytes/1024/1024).toFixed(2) + ' MB';
 }
 
-/**
- * Update the three slot UIs based on currentBundle state.
- * Called whenever files are added/removed.
- */
 function refreshSlotsUI() {
-  // --- Mesh slot ---
   const meshSlot = document.getElementById('slotMesh');
   const meshStatus = document.getElementById('slotMeshStatus');
   const meshName = document.getElementById('slotMeshName');
@@ -1218,7 +1203,6 @@ function refreshSlotsUI() {
     meshName.textContent = '.obj / .glb / .gltf / .ply';
   }
 
-  // --- MTL slot ---
   const mtlSlot = document.getElementById('slotMtl');
   const mtlStatus = document.getElementById('slotMtlStatus');
   const mtlName = document.getElementById('slotMtlName');
@@ -1232,7 +1216,6 @@ function refreshSlotsUI() {
     mtlName.textContent = '.mtl';
   }
 
-  // --- Texture slot ---
   const texSlot = document.getElementById('slotTex');
   const texStatus = document.getElementById('slotTexStatus');
   const texName = document.getElementById('slotTexName');
@@ -1247,7 +1230,6 @@ function refreshSlotsUI() {
     texName.textContent = '.png / .jpg / .webp (여러 개 가능)';
   }
 
-  // Top dropzone summary
   if (currentBundle.meshFile) {
     document.getElementById('objLoadedName').textContent =
       `${currentBundle.meshFile.name} · ${fmtSize(currentBundle.meshFile.size)}`;
@@ -1258,7 +1240,6 @@ function refreshSlotsUI() {
     objDropzoneLoaded.classList.add('hidden');
   }
 
-  // Compact info pill
   const parts = [];
   if (currentBundle.meshFile) parts.push(`mesh: ${currentBundle.meshFile.name}`);
   if (currentBundle.mtlFile) parts.push(`mtl: ${currentBundle.mtlFile.name}`);
@@ -1298,7 +1279,6 @@ function handleObjFiles(files) {
   updateRunButton();
 }
 
-// Initial state
 refreshSlotsUI();
 
 /* =========== LLM analysis prompt =========== */
@@ -1339,10 +1319,6 @@ const FAL_MODELS = {
   'fal-tripo3d':     { id: 'fal-ai/tripo3d/tripo/v2.5/image-to-3d', inputKey: 'image_url', outKey: 'model_mesh' }
 };
 
-/* ---- LOCAL server image-to-3D ----
- * POST {endpoint} with JSON { image_b64, image_mime }
- * Response: JSON { mesh_url } or { model_mesh: { url } }  OR  binary GLB
- */
 async function localImageTo3D(endpoint, imageDataUrl, onProgress) {
   onProgress && onProgress('로컬 서버에 전송 중...');
   const b64 = imageDataUrl.split(',')[1];
@@ -1362,7 +1338,6 @@ async function localImageTo3D(endpoint, imageDataUrl, onProgress) {
     const base = endpoint.replace(/\/[^\/]+\/?$/, '');
     const toAbs = u => u && u.startsWith('/') ? base + u : u;
 
-    // OBJ+MTL+텍스처 번들 응답 (InstantMesh 로컬 서버)
     if (j.obj_url) {
       return {
         type: 'obj-bundle',
@@ -1372,7 +1347,6 @@ async function localImageTo3D(endpoint, imageDataUrl, onProgress) {
       };
     }
 
-    // GLB URL 응답 (mock / triposr)
     let u = j.mesh_url || j.url;
     if (!u && j.model_mesh) u = (typeof j.model_mesh === 'string') ? j.model_mesh : j.model_mesh.url;
     if (!u && j.glb_b64) {
@@ -1393,7 +1367,6 @@ async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
   const cfg = FAL_MODELS[modelKey];
   const endpoint = `https://queue.fal.run/${cfg.id}`;
 
-  // The fal.ai endpoint accepts image_url as data URL too
   const inputPayload = {};
   if (cfg.inputKey === 'input_image_urls') {
     inputPayload[cfg.inputKey] = [imageDataUrl];
@@ -1401,7 +1374,6 @@ async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
     inputPayload[cfg.inputKey] = imageDataUrl;
   }
 
-  // Submit
   onProgress && onProgress('요청 제출 중...');
   const subRes = await fetch(endpoint, {
     method: 'POST',
@@ -1413,7 +1385,6 @@ async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
   const reqId = sub.request_id;
   if (!reqId) throw new Error('No request_id in fal response: ' + JSON.stringify(sub));
 
-  // Poll status
   const statusUrl = `${endpoint}/requests/${reqId}/status`;
   const resultUrl = `${endpoint}/requests/${reqId}`;
   for (let attempt = 0; attempt < 240; attempt++) {
@@ -1426,13 +1397,11 @@ async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
     if (st.status === 'FAILED' || st.status === 'ERROR') throw new Error('fal job failed: ' + JSON.stringify(st));
   }
 
-  // Result
   const rr = await fetch(resultUrl, { headers: { 'Authorization': 'Key ' + apiKey }});
   if (!rr.ok) throw new Error(`result ${rr.status}: ${await rr.text()}`);
   const result = await rr.json();
   document.getElementById('meshResp').textContent = JSON.stringify(result, null, 2);
 
-  // Extract mesh URL — try common keys
   let meshUrl = null;
   const keys = [cfg.outKey, 'model_mesh', 'output_mesh', 'mesh', 'glb', 'mesh_url'];
   for (const k of keys) {
@@ -1441,7 +1410,6 @@ async function falImageTo3D(modelKey, apiKey, imageDataUrl, onProgress) {
       if (result[k].url) { meshUrl = result[k].url; break; }
     }
   }
-  // Deep dive
   if (!meshUrl) {
     const flat = JSON.stringify(result);
     const m = flat.match(/https?:\/\/[^"]+\.(?:glb|obj|ply)\b[^"]*/i);
@@ -1458,9 +1426,6 @@ async function loadMesh(url) {
   try {
     res = await fetch(url);
   } catch (e) {
-    // Most common cause here is CORS — fal.ai delivers GLB from a CDN
-    // (fal.media / fal-cdn / R2) whose CORS headers are not always
-    // permissive for browser fetches. Surface that explicitly.
     throw new Error(
       'mesh CDN 접근 실패 (CORS 가능성 높음). ' +
       '원본 GLB는 새 탭으로 열어 다운로드 가능: ' + url +
@@ -1480,7 +1445,6 @@ async function loadMesh(url) {
   } else if (lower.endsWith('.ply')) {
     throw new Error('PLY 미지원 — 모델 출력 형식을 GLB/OBJ로 변경하세요.');
   } else {
-    // Try GLB by magic number
     const view = new DataView(arrBuf);
     if (view.getUint32(0, true) === 0x46546c67) return await parseGLB(arrBuf);
     throw new Error('알 수 없는 mesh 형식');
@@ -1503,24 +1467,13 @@ function parseGLB(arrBuf) {
   });
 }
 
-/**
- * Extract the first usable texture image from a parsed GLB's meshes.
- * GLTFLoader puts the diffuse texture in mesh.material.map.image
- * (which is typically an HTMLImageElement or ImageBitmap).
- *
- * @param {THREE.Mesh[]} meshes
- * @returns {HTMLCanvasElement|HTMLImageElement|null}
- */
 function extractGlbTextureImage(meshes) {
   for (const m of meshes) {
     const mat = m.material;
     if (!mat) continue;
-    // Standard / Basic / Phong materials all expose .map
     const tex = mat.map || (Array.isArray(mat) ? mat[0]?.map : null);
     if (tex && tex.image) {
       const img = tex.image;
-      // ImageBitmap is not directly drawable for getImageData via Image, but canvas drawImage works
-      // We normalize to a canvas so downstream bakeTextureToVertexColors works uniformly.
       const w = img.width || img.naturalWidth;
       const h = img.height || img.naturalHeight;
       if (!w || !h) continue;
@@ -1547,31 +1500,18 @@ function parseOBJ(text) {
   return { scene: group, meshes };
 }
 
-/**
- * Parse OBJ + MTL + textures from File objects.
- * Uses LoadingManager.setURLModifier to redirect filename references in the
- * MTL (e.g. "map_Kd texture.png") to blob URLs of the uploaded image files.
- *
- * @param {File} objFile
- * @param {File|null} mtlFile
- * @param {File[]} textureFiles
- * @returns {Promise<{scene: THREE.Group, meshes: THREE.Mesh[], textureFile: File|null}>}
- */
 async function parseOBJWithMTL(objFile, mtlFile, textureFiles) {
   const objText = await objFile.text();
-  // If no MTL provided, fall back to plain OBJ parsing
   if (!mtlFile) {
     const parsed = parseOBJ(objText);
     return { ...parsed, textureFile: textureFiles && textureFiles[0] ? textureFiles[0] : null };
   }
   const mtlText = await mtlFile.text();
 
-  // Build a name → blob-URL map for textures (basename, case-insensitive)
   const texMap = new Map();
   for (const tf of textureFiles) {
     const url = URL.createObjectURL(tf);
     texMap.set(tf.name.toLowerCase(), url);
-    // Also strip directory portion just in case
     const base = tf.name.split(/[\\/]/).pop().toLowerCase();
     if (!texMap.has(base)) texMap.set(base, url);
   }
@@ -1580,14 +1520,12 @@ async function parseOBJWithMTL(objFile, mtlFile, textureFiles) {
   manager.setURLModifier(url => {
     const base = url.split(/[\\/]/).pop().toLowerCase().split('?')[0];
     if (texMap.has(base)) return texMap.get(base);
-    // Strip leading "./" or relative prefix
     const stripped = url.replace(/^\.?\/+/, '').toLowerCase();
     if (texMap.has(stripped)) return texMap.get(stripped);
-    return url; // unchanged (may 404; that's fine — caller handles)
+    return url;
   });
 
   const mtlLoader = new THREE.MTLLoader(manager);
-  // setResourcePath('') makes the loader pass relative names directly to setURLModifier
   mtlLoader.setResourcePath('');
   const materials = mtlLoader.parse(mtlText, '');
   materials.preload();
@@ -1600,26 +1538,10 @@ async function parseOBJWithMTL(objFile, mtlFile, textureFiles) {
   const meshes = [];
   group.traverse(c => { if (c.isMesh && c.geometry) meshes.push(c); });
 
-  // Pick the first texture file as the "primary" texture to bake (most common case
-  // for InstantMesh: a single mesh.png atlas).
   return { scene: group, meshes, textureFile: textureFiles[0] || null };
 }
 
 /* =========== Texture → vertex color bake =========== */
-/**
- * Sample the given image (HTMLImageElement / HTMLCanvasElement) at each
- * vertex's UV coordinate and write the sampled RGB to a 'color' attribute on
- * the geometry. UV V axis is flipped (OBJ/MTL convention).
- *
- * This is the workaround for two facts:
- *   1. SimplifyModifier (r128) drops non-position attributes.
- *   2. rhino3dm.js does not reliably embed texture files in .3dm output;
- *      vertex colors render directly in Rhino with no extra setup.
- *
- * @param {THREE.BufferGeometry} geom (will be modified in place)
- * @param {HTMLImageElement|HTMLCanvasElement} image
- * @returns {boolean} success
- */
 function bakeTextureToVertexColors(geom, image) {
   if (!geom || !image) return false;
   const uvAttr = geom.attributes.uv;
@@ -1643,10 +1565,8 @@ function bakeTextureToVertexColors(geom, image) {
   for (let i = 0; i < n; i++) {
     let u = uvAttr.getX(i);
     let v = uvAttr.getY(i);
-    // Wrap UVs (texture-style repeat for safety)
     u = u - Math.floor(u);
     v = v - Math.floor(v);
-    // OBJ/MTL: V flipped relative to canvas pixel space
     const px_x = Math.min(w - 1, Math.max(0, Math.floor(u * w)));
     const px_y = Math.min(h - 1, Math.max(0, Math.floor((1 - v) * h)));
     const o = (px_y * w + px_x) * 4;
@@ -1669,10 +1589,8 @@ function optimizeGeometry(geomIn) {
   if (optMode === 'off') return geomIn;
 
   let g = geomIn;
-  // Ensure non-indexed geometries get indexed for processing
   if (!g.attributes.position) return g;
 
-  // Step 1: merge duplicate vertices
   if (THREE.BufferGeometryUtils && THREE.BufferGeometryUtils.mergeVertices) {
     const before = g.attributes.position.count;
     try {
@@ -1684,31 +1602,25 @@ function optimizeGeometry(geomIn) {
   }
   if (optMode === 'merge-only') return g;
 
-  // Step 2: face decimation (uniform sampling — SimplifyModifier r128 버그 우회)
   const curFaces = g.index ? g.index.count/3 : g.attributes.position.count/3;
   const doDecimate = optMode === 'force' || (optMode === 'auto' && curFaces > targetFaces);
   if (doDecimate) {
     try {
       const t0 = performance.now();
-      // 압축률 적용: 현재 face 수 × compressRatio 만큼 유지
       const keepFaces = Math.floor(curFaces * compressRatio);
       log(`Face 감소 시작: ${Math.floor(curFaces)} → ${keepFaces} (${Math.round(compressRatio*100)}% 유지)`, 'info');
 
-      // non-indexed로 변환
       let src = g.index ? g.toNonIndexed() : g.clone();
       const totalVerts = src.attributes.position.count;
       const totalFaces = totalVerts / 3;
       const keepRatio = Math.min(1, keepFaces / totalFaces);
 
       if (keepRatio < 1) {
-        // uniform stride sampling — 매 N번째 face만 유지
         const stride = Math.ceil(1 / keepRatio);
         const attrs = src.attributes;
         const attrNames = Object.keys(attrs);
         const newArrays = {};
-        attrNames.forEach(name => {
-          newArrays[name] = [];
-        });
+        attrNames.forEach(name => { newArrays[name] = []; });
 
         for (let f = 0; f < totalFaces; f += stride) {
           const vi = f * 3;
@@ -1743,73 +1655,6 @@ function optimizeGeometry(geomIn) {
   return g;
 }
 
-/**
- * After SimplifyModifier drops attributes, copy back a named attribute by
- * nearest-neighbor lookup from the pre-simplification geometry. Acceptable
- * O(N*M) cost for typical 5k-target meshes (worst-case ~100M ops).
- */
-function remapVertexAttribute(outGeom, srcGeom, attrName, itemSize) {
-  const srcAttr = srcGeom.attributes[attrName];
-  if (!srcAttr) return;
-  const outPos = outGeom.attributes.position;
-  const srcPos = srcGeom.attributes.position;
-  if (!outPos || !srcPos) return;
-  const n = outPos.count;
-  const m = srcPos.count;
-  const arr = new Float32Array(n * itemSize);
-  // Build a simple grid hash on src for speed
-  // Compute bbox
-  let minX=Infinity,minY=Infinity,minZ=Infinity,maxX=-Infinity,maxY=-Infinity,maxZ=-Infinity;
-  for (let i = 0; i < m; i++) {
-    const x = srcPos.getX(i), y = srcPos.getY(i), z = srcPos.getZ(i);
-    if (x<minX) minX=x; if (y<minY) minY=y; if (z<minZ) minZ=z;
-    if (x>maxX) maxX=x; if (y>maxY) maxY=y; if (z>maxZ) maxZ=z;
-  }
-  const gridN = Math.max(1, Math.round(Math.cbrt(m / 4)));
-  const sx = (maxX-minX) || 1, sy = (maxY-minY) || 1, sz = (maxZ-minZ) || 1;
-  const cell = (x,y,z) => {
-    const gx = Math.min(gridN-1, Math.max(0, Math.floor((x-minX)/sx * gridN)));
-    const gy = Math.min(gridN-1, Math.max(0, Math.floor((y-minY)/sy * gridN)));
-    const gz = Math.min(gridN-1, Math.max(0, Math.floor((z-minZ)/sz * gridN)));
-    return gx + gy*gridN + gz*gridN*gridN;
-  };
-  const buckets = new Map();
-  for (let i = 0; i < m; i++) {
-    const k = cell(srcPos.getX(i), srcPos.getY(i), srcPos.getZ(i));
-    let arr = buckets.get(k); if (!arr) { arr = []; buckets.set(k, arr); }
-    arr.push(i);
-  }
-  for (let i = 0; i < n; i++) {
-    const x = outPos.getX(i), y = outPos.getY(i), z = outPos.getZ(i);
-    // Search a 3x3x3 neighborhood
-    const gx = Math.min(gridN-1, Math.max(0, Math.floor((x-minX)/sx * gridN)));
-    const gy = Math.min(gridN-1, Math.max(0, Math.floor((y-minY)/sy * gridN)));
-    const gz = Math.min(gridN-1, Math.max(0, Math.floor((z-minZ)/sz * gridN)));
-    let bestI = -1, bestD = Infinity;
-    let radius = 0;
-    while (bestI < 0 && radius <= gridN) {
-      for (let dx=-radius; dx<=radius; dx++) for (let dy=-radius; dy<=radius; dy++) for (let dz=-radius; dz<=radius; dz++) {
-        if (radius > 0 && Math.max(Math.abs(dx),Math.abs(dy),Math.abs(dz)) !== radius) continue;
-        const nx=gx+dx, ny=gy+dy, nz=gz+dz;
-        if (nx<0||ny<0||nz<0||nx>=gridN||ny>=gridN||nz>=gridN) continue;
-        const k = nx + ny*gridN + nz*gridN*gridN;
-        const lst = buckets.get(k); if (!lst) continue;
-        for (const idx of lst) {
-          const dxv = srcPos.getX(idx)-x, dyv = srcPos.getY(idx)-y, dzv = srcPos.getZ(idx)-z;
-          const d = dxv*dxv + dyv*dyv + dzv*dzv;
-          if (d < bestD) { bestD = d; bestI = idx; }
-        }
-      }
-      radius++;
-    }
-    if (bestI < 0) bestI = 0;
-    for (let c = 0; c < itemSize; c++) {
-      arr[i*itemSize + c] = srcAttr.array[bestI*itemSize + c];
-    }
-  }
-  outGeom.setAttribute(attrName, new THREE.BufferAttribute(arr, itemSize));
-}
-
 /* =========== Three.js geometry → rhino3dm.Mesh =========== */
 function threeGeomToRhino(geom) {
   const rMesh = new rhino.Mesh();
@@ -1833,8 +1678,6 @@ function threeGeomToRhino(geom) {
     }
   }
 
-  // Write vertex normals (Rhino's Shaded view uses these for lighting; without
-  // them many display modes render the mesh dark)
   if (normalAttr) {
     try {
       const ns = (typeof rMesh.normals === 'function') ? rMesh.normals() :
@@ -1849,8 +1692,6 @@ function threeGeomToRhino(geom) {
     }
   }
 
-  // Write vertex colors if present (baked from texture in OBJ+MTL flow).
-  // rhino3dm.js version skew: try multiple signatures.
   let colorsWritten = 0;
   if (colorAttr && typeof rMesh.vertexColors === 'function') {
     try {
@@ -1860,7 +1701,6 @@ function threeGeomToRhino(geom) {
         const gC = Math.round(Math.min(1, Math.max(0, colorAttr.getY(i))) * 255);
         const b = Math.round(Math.min(1, Math.max(0, colorAttr.getZ(i))) * 255);
         let ok = false;
-        // (a) signed-int packed ARGB (rhino3dm builds vary; some accept a single int)
         try { vc.add(r, gC, b, 255); ok = true; } catch (_) {}
         if (!ok) { try { vc.add(r, gC, b); ok = true; } catch (_) {} }
         if (!ok) { try { vc.add({ r, g: gC, b, a: 255 }); ok = true; } catch (_) {} }
@@ -1875,13 +1715,11 @@ function threeGeomToRhino(geom) {
   }
 
   rMesh.compact();
-  rMesh._hasVertexColors = colorsWritten > 0; // hint for buildRhinoFile
+  rMesh._hasVertexColors = colorsWritten > 0;
   return rMesh;
 }
 
-/* =========== Shared mesh→rhino pipeline (used by Image & OBJ modes) =========== */
 async function processMeshGeometries(loadedMeshes, textureImage = null) {
-  // 1) Bake each mesh's world matrix into a fresh geometry
   const axisFix = document.getElementById('axisFix').value;
   const fixMat = new THREE.Matrix4();
   if (axisFix === 'x-90') fixMat.makeRotationX(-Math.PI/2);
@@ -1895,24 +1733,11 @@ async function processMeshGeometries(loadedMeshes, textureImage = null) {
     return g;
   });
 
-  // 1.5) Texture → vertex color bake.
-  //
-  // Three sources of color in priority order:
-  //   (a) geometry.attributes.color already present (e.g. Hunyuan3D, TripoSR
-  //       sometimes outputs vertex-colored GLB) → keep, no bake.
-  //   (b) textureImage + UV → bake by sampling texture at UV coords.
-  //   (c) None → mesh stays uncolored; Rhino shows ByLayer color.
   let preColored = 0, baked = 0, skippedNoUV = 0;
   for (const g of bakedGeoms) {
-    if (g.attributes.color) {
-      preColored++;
-      continue;
-    }
+    if (g.attributes.color) { preColored++; continue; }
     if (!textureImage) continue;
-    if (!g.attributes.uv) {
-      skippedNoUV++;
-      continue;
-    }
+    if (!g.attributes.uv) { skippedNoUV++; continue; }
     if (bakeTextureToVertexColors(g, textureImage)) baked++;
   }
   if (preColored) log(`기존 vertex color 보존: ${preColored} mesh`, 'ok');
@@ -1920,17 +1745,14 @@ async function processMeshGeometries(loadedMeshes, textureImage = null) {
   if (skippedNoUV) log(`UV 좌표 없어 베이크 스킵: ${skippedNoUV} mesh — Rhino에서 색 없이 표시됨`, 'warn');
   if (!preColored && !baked) log('vertex color 없음 — .3dm은 무색 메쉬로 저장됨', 'warn');
 
-  // 2) Optimize each
   const optGeoms = bakedGeoms.map(g => optimizeGeometry(g));
 
-  // 3) Compute bbox over all
   const bbox = new THREE.Box3();
   optGeoms.forEach(g => { g.computeBoundingBox(); if (g.boundingBox) bbox.union(g.boundingBox); });
   const size = new THREE.Vector3(); bbox.getSize(size);
   const center = new THREE.Vector3(); bbox.getCenter(center);
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
 
-  // 4) Determine target scale (mm)
   const manualScale = parseFloat(document.getElementById('manualScale').value);
   let targetMm = 100;
   if (!isNaN(manualScale) && manualScale > 0) targetMm = manualScale;
@@ -1938,24 +1760,18 @@ async function processMeshGeometries(loadedMeshes, textureImage = null) {
   const scaleFactor = targetMm / maxDim;
   log(`스케일: longest ${maxDim.toFixed(3)} → ${targetMm}mm (×${scaleFactor.toFixed(3)})`);
 
-  // 5) Final transform: center then scale
   const xform = new THREE.Matrix4()
     .makeScale(scaleFactor, scaleFactor, scaleFactor)
     .multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z));
 
-  // 6) Bake transform into final geoms, ensure normals (Rhino lighting needs them), convert to rhino meshes
   const finalGeoms = optGeoms.map(g => {
     const c = g.clone();
     c.applyMatrix4(xform);
-    // (Re)compute vertex normals AFTER the final transform so they're consistent.
-    // Rhino's Shaded display needs normals to do lighting; without them the mesh
-    // renders flat/dark.
     c.computeVertexNormals();
     return c;
   });
   const rhinoMeshes = finalGeoms.map(g => threeGeomToRhino(g));
 
-  // 7) Build .3dm
   const file = buildRhinoFile(rhinoMeshes);
   const arr = file.toByteArray();
   lastDmBlob = new Blob([arr], { type: 'application/octet-stream' });
@@ -1964,7 +1780,6 @@ async function processMeshGeometries(loadedMeshes, textureImage = null) {
   dl.href = dmUrl; dl.download = `output_${Date.now()}.3dm`;
   dl.classList.remove('hidden');
 
-  // 8) Preview
   buildOptimizedPreview(finalGeoms);
 
   const totalFaces = finalGeoms.reduce((s,g) => s + (g.index ? g.index.count/3 : g.attributes.position.count/3), 0);
@@ -2002,22 +1817,14 @@ function buildOptimizedPreview(geoms) {
   }
 }
 
-/* =========== Build .3dm =========== */
 function buildRhinoFile(rhinoMeshes) {
   const file = new rhino.File3dm();
   rhinoMeshes.forEach(m => {
-    // If mesh has vertex colors, attach ObjectAttributes that tell Rhino to use them.
-    // rhino3dm.js exposes ObjectAttributes with colorSource / plotColorSource:
-    //   colorSource: 0=byLayer, 1=byObject, 2=byMaterial, 3=byParent
-    // Vertex colors are displayed by Rhino in display modes that have
-    // "color reduction → use vertex colors" — most modes show them when a
-    // mesh has the color array even with the default (ByLayer) source, but
-    // we set ByObject + white for max compatibility.
     let attrs = null;
     if (m && m._hasVertexColors) {
       try {
         attrs = new rhino.ObjectAttributes();
-        if ('colorSource' in attrs) attrs.colorSource = 1; // ColorFromObject
+        if ('colorSource' in attrs) attrs.colorSource = 1;
         if (typeof attrs.drawColor !== 'undefined') {
           attrs.drawColor = { r: 255, g: 255, b: 255, a: 255 };
         } else if (typeof attrs.objectColor !== 'undefined') {
@@ -2032,7 +1839,7 @@ function buildRhinoFile(rhinoMeshes) {
   return file;
 }
 
-/* =========== Text→Curves fallback (mode 2) =========== */
+/* =========== Text→Curves fallback =========== */
 const CURVES_PROMPT = `사용자 설명을 받아 Rhino 객체로 변환 가능한 JSON 형상 스펙으로 출력. 코드블록 없이 JSON만.
 
 {
@@ -2128,7 +1935,6 @@ async function runImageMode() {
   if (!currentImage) throw new Error('이미지를 업로드하세요.');
   log('==== Image → 3D → Rhino 시작 ====', 'stage');
 
-  // ---- Stage A: LLM analysis (optional) ----
   let analysis = null;
   const llmKey = llmKeyEl.value.trim();
   if (llmKey && document.getElementById('llmStatus').classList.contains('ok')) {
@@ -2157,7 +1963,6 @@ async function runImageMode() {
     log('A · LLM 분석 스킵 (키 없음)', 'warn');
   }
 
-  // ---- Stage B: Image → 3D mesh ----
   setStage('stageB','active');
   log('B · Image → 3D Mesh 시작', 'stage');
   const meshModelKey = meshModelEl.value;
@@ -2173,33 +1978,29 @@ async function runImageMode() {
     meshUrl = await falImageTo3D(meshModelKey, meshKey, currentImage.dataUrl,
       msg => setStage('stageB','active', msg));
   }
-  // ---- OBJ 번들 처리 (InstantMesh 로컬 서버) ----
+
   let loaded, textureForBake = null;
   if (meshUrl && typeof meshUrl === 'object' && meshUrl.type === 'obj-bundle') {
     log(`OBJ 번들 수신: obj=${meshUrl.obj_url}`, 'ok');
     setStage('stageB','active','OBJ+MTL+텍스처 로드 중');
 
-    // 1) OBJ 텍스트 fetch
     const ngrok = { 'ngrok-skip-browser-warning': 'true' };
     const objRes = await fetch(meshUrl.obj_url, { headers: ngrok });
     if (!objRes.ok) throw new Error('OBJ fetch 실패: ' + objRes.status);
     const objText = await objRes.text();
 
-    // 2) MTL 텍스트 fetch
     let mtlText = null;
     if (meshUrl.mtl_url) {
       const mtlRes = await fetch(meshUrl.mtl_url, { headers: ngrok });
       if (mtlRes.ok) mtlText = await mtlRes.text();
     }
 
-    // 3) 텍스처 fetch → blob URL
     let texBlobUrl = null;
     if (meshUrl.tex_url) {
       const texRes = await fetch(meshUrl.tex_url, { headers: ngrok });
       if (texRes.ok) {
         const texBlob = await texRes.blob();
         texBlobUrl = URL.createObjectURL(texBlob);
-        // HTMLImageElement로 만들어 베이크에 사용
         textureForBake = await new Promise((res, rej) => {
           const img = new Image();
           img.onload = () => res(img);
@@ -2210,7 +2011,6 @@ async function runImageMode() {
       }
     }
 
-    // 4) Three.js OBJ+MTL 파싱
     if (mtlText && texBlobUrl) {
       const texName = meshUrl.tex_url.split('/').pop().toLowerCase();
       const texMap = new Map([[texName, texBlobUrl]]);
@@ -2237,7 +2037,6 @@ async function runImageMode() {
     setStage('stageB','done', `${loaded.meshes.length} mesh`);
 
   } else {
-    // GLB URL (mock / triposr / fal.ai)
     const glbUrl = meshUrl;
     log(`mesh URL: ${glbUrl}`, 'ok');
     if (meshModelKey !== 'local-server') {
@@ -2269,7 +2068,6 @@ async function runImageMode() {
     }
   }
 
-  // ---- Stage C: Mesh → Rhino ----
   setStage('stageC','active');
   log('C · 메쉬 최적화 + rhino3dm 변환' + (textureForBake ? ' (텍스처 vertex color 베이크)' : ''), 'stage');
   lastAnalysis = analysis;
@@ -2281,14 +2079,9 @@ async function runImageMode() {
     log('💡 Rhino에서 색이 안 보이면: 표시모드를 "음영처리(Shaded)" 또는 "렌더링됨(Rendered)"로 변경', 'info');
   }
 
-  // ---- Supabase 갤러리 저장 ----
   try {
     const stem = `model_${Date.now()}`;
-
-    // 1) 입력 이미지 업로드
     const inputImgUrl = await uploadImageToSupabase(currentImage.dataUrl, `inputs/${stem}_input.png`);
-
-    // 2) .3dm 업로드 (lastDmBlob 사용)
     let tdmUrl = '';
     if (lastDmBlob) {
       const tdmDataUrl = await new Promise(res => {
@@ -2299,7 +2092,6 @@ async function runImageMode() {
       tdmUrl = await uploadImageToSupabase(tdmDataUrl, `tdm/${stem}.3dm`) || '';
     }
 
-    // 3) OBJ/MTL URL (서버에서 이미 Supabase에 올림)
     const objUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.obj_url || '') : (meshUrl || '');
     const mtlUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.mtl_url || '') : '';
     const texUrl = (meshUrl && typeof meshUrl === 'object') ? (meshUrl.tex_url || '') : '';
@@ -2325,7 +2117,6 @@ async function runImageMode() {
   log('==== 완료 ====', 'stage');
 }
 
-/* =========== OBJ Direct mode =========== */
 async function runObjMode() {
   const meshFile = currentBundle.meshFile;
   if (!meshFile) throw new Error('OBJ/GLB/PLY 파일을 업로드하세요.');
@@ -2352,7 +2143,6 @@ async function runObjMode() {
       const text = new TextDecoder().decode(arrBuf);
       loaded = await parseOBJ(text);
     }
-    // Load texture as an HTMLImageElement for canvas-baking
     if (currentBundle.textureFiles.length) {
       const primary = currentBundle.textureFiles[0];
       textureImage = await loadImageFromFile(primary);
@@ -2369,7 +2159,7 @@ async function runObjMode() {
 
   setStage('stageC','active');
   log('C · 메쉬 최적화 + rhino3dm 변환' + (textureImage ? ' (텍스처 vertex color 베이크)' : ''), 'stage');
-  lastAnalysis = null; // OBJ mode: no LLM analysis; rely on manualScale
+  lastAnalysis = null;
   const result = await processMeshGeometries(loaded.meshes, textureImage);
 
   if (lastGlbBlob) {
@@ -2385,7 +2175,6 @@ async function runObjMode() {
   log('==== 완료 ====', 'stage');
 }
 
-/** Load a File into an HTMLImageElement (resolved when image is decoded). */
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -2473,37 +2262,6 @@ function clearGroup() {
   }
 }
 
-function buildMeshPreview(items, targetMm) {
-  clearGroup();
-  const meshMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.05, roughness: 0.75, side: THREE.DoubleSide });
-  const bbox = new THREE.Box3();
-  let totalV = 0, totalF = 0;
-  items.forEach(({mesh, mat}) => {
-    const g = mesh.geometry.clone();
-    g.applyMatrix4(mat);
-    const m = new THREE.Mesh(g, meshMat);
-    objectsGroup.add(m);
-    g.computeBoundingBox();
-    if (g.boundingBox) bbox.union(g.boundingBox);
-    totalV += g.attributes.position.count;
-    totalF += g.index ? g.index.count/3 : g.attributes.position.count/3;
-
-    // wireframe overlay
-    const eg = new THREE.EdgesGeometry(g, 30);
-    const lm = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ color: 0x262626, transparent: true, opacity: 0.4 }));
-    objectsGroup.add(lm);
-  });
-  document.getElementById('meshStats').textContent = `${totalV.toLocaleString()} / ${Math.floor(totalF).toLocaleString()}`;
-  if (!bbox.isEmpty()) {
-    const size = new THREE.Vector3(); bbox.getSize(size);
-    const center = new THREE.Vector3(); bbox.getCenter(center);
-    const maxDim = Math.max(size.x, size.y, size.z, 10);
-    camera.position.set(center.x + maxDim*1.5, center.y + maxDim*1.5, center.z + maxDim*1.5);
-    controls.target.copy(center);
-    document.getElementById('bbox').textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)}`;
-  }
-}
-
 function buildSpecPreview(spec) {
   clearGroup();
   const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
@@ -2562,7 +2320,7 @@ function mkSpline(points, closed, mat) {
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
 }
 
-/* =========== Gallery & Tab =========== */
+/* =========== Username =========== */
 let currentUsername = localStorage.getItem('username') || '';
 
 function confirmUsername() {
@@ -2589,6 +2347,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+/* =========== Supabase config =========== */
 const SUPABASE_URL = 'https://illtukzqzfgeqkzsnsgc.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsbHR1a3pxemZnZXFrenNuc2djIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTc2MDIsImV4cCI6MjA5NTg3MzYwMn0.61C3hn6PugxR3zZ22geGbSzXwkMLtTxTNlIVqy6exUA';
 
@@ -2605,7 +2364,10 @@ async function saveToSupabase(data) {
       body: JSON.stringify(data)
     });
     if (res.ok) log('✅ Supabase 갤러리 저장 완료', 'ok');
-    else log('Supabase 저장 실패: ' + res.status, 'warn');
+    else {
+      const body = await res.text();
+      log(`Supabase 저장 실패 ${res.status}: ${body.substring(0,200)}`, 'warn');
+    }
   } catch (e) {
     log('Supabase 저장 에러: ' + e.message, 'warn');
   }
@@ -2613,14 +2375,10 @@ async function saveToSupabase(data) {
 
 async function uploadImageToSupabase(dataUrl, filename) {
   try {
-    // dataUrl → Blob
     const res = await fetch(dataUrl);
     const blob = await res.blob();
     const arrayBuffer = await blob.arrayBuffer();
 
-    // 버킷명이 포함된 전체 경로: meshes/inputs/xxx.png
-    // filename에 이미 inputs/ or meshes/ 포함됨
-    // content-type 결정
     let contentType = blob.type || 'application/octet-stream';
     if (filename.endsWith('.3dm')) contentType = 'application/octet-stream';
     else if (filename.endsWith('.obj') || filename.endsWith('.mtl')) contentType = 'text/plain';
@@ -2651,6 +2409,7 @@ async function uploadImageToSupabase(dataUrl, filename) {
   return null;
 }
 
+/* =========== Tab switching =========== */
 function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('on'));
   document.querySelector(`[data-tab="${tab}"]`).classList.add('on');
@@ -2662,7 +2421,7 @@ function switchTab(tab) {
 async function likeModel(id, currentLikes, btn) {
   const newLikes = (currentLikes || 0) + 1;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/models?id=eq.${id}`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/models?id=eq.${id}`, {
       method: 'PATCH',
       headers: {
         'apikey': SUPABASE_KEY,
@@ -2672,6 +2431,12 @@ async function likeModel(id, currentLikes, btn) {
       },
       body: JSON.stringify({ likes: newLikes })
     });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error('Like update failed:', r.status, body);
+      alert(`좋아요 실패 (${r.status}): RLS UPDATE 정책이 없을 수 있어요. setup_supabase.sql 참고.`);
+      return;
+    }
     btn.innerHTML = `❤️ ${newLikes}`;
     btn.style.color = '#ef4444';
     btn.disabled = true;
@@ -2686,7 +2451,6 @@ function openModelViewer(objUrl, texUrl, title) {
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 
-  // Three.js 뷰어 초기화
   container.innerHTML = '';
   const w = container.clientWidth, h = container.clientHeight;
   const mScene = new THREE.Scene();
@@ -2704,7 +2468,6 @@ function openModelViewer(objUrl, texUrl, title) {
   mScene.add(dl);
   mScene.add(new THREE.GridHelper(300, 30, 0x262626, 0x141414));
 
-  // OBJ 로드
   if (objUrl) {
     fetch(objUrl, { headers: { 'ngrok-skip-browser-warning': 'true' } })
       .then(r => r.text())
@@ -2754,7 +2517,6 @@ function openModelViewer(objUrl, texUrl, title) {
   let animId;
   (function animate() { animId = requestAnimationFrame(animate); mControls.update(); mRenderer.render(mScene, mCam); })();
 
-  // 닫기
   document.getElementById('modalClose').onclick = () => {
     cancelAnimationFrame(animId);
     mRenderer.dispose();
@@ -2764,22 +2526,122 @@ function openModelViewer(objUrl, texUrl, title) {
   };
 }
 
+/* =========== Gallery loading (FIXED with diagnostics) =========== */
+
+/** Common diagnostic helper — shows raw Supabase response in console. */
+async function diagnoseGallery() {
+  console.group('🔧 Gallery 진단');
+  console.log('SUPABASE_URL:', SUPABASE_URL);
+  console.log('Anon key (앞 20자):', SUPABASE_KEY.substring(0, 20) + '...');
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/models?select=*&limit=5`;
+    console.log('요청 URL:', url);
+    const res = await fetch(url, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+    });
+    console.log('HTTP 상태:', res.status, res.statusText);
+    const text = await res.text();
+    console.log('응답 본문:', text);
+    let parsed;
+    try { parsed = JSON.parse(text); } catch { parsed = null; }
+    if (Array.isArray(parsed)) {
+      console.log(`✅ 반환된 행 수: ${parsed.length}`);
+      if (parsed.length > 0) {
+        console.log('첫 번째 행:', parsed[0]);
+        console.log('컬럼들:', Object.keys(parsed[0]));
+      } else {
+        console.warn('⚠️ 행이 0개입니다. RLS 정책 부재가 거의 확실합니다.');
+        console.warn('해결: Supabase SQL Editor에서 아래 실행');
+        console.warn(`alter table public.models enable row level security;
+create policy "Public read access" on public.models for select to anon using (true);`);
+      }
+    } else {
+      console.error('❌ 응답이 JSON 배열이 아님:', parsed);
+    }
+  } catch (e) {
+    console.error('진단 중 에러:', e);
+  }
+  console.groupEnd();
+  alert('진단 결과를 브라우저 콘솔(F12 → Console 탭)에서 확인하세요.');
+}
+
+function renderEmptyDiagnostic(reason, detail) {
+  const grid = document.getElementById('galleryGrid');
+  grid.innerHTML = `
+    <div class="empty-diag">
+      <h3><span class="lbl lbl-warn">진단</span>${reason}</h3>
+      <p>${detail}</p>
+      <p style="font-weight:600;color:var(--text);margin-top:18px;">해결 방법: Supabase Dashboard → SQL Editor 에서 아래를 실행하세요.</p>
+      <pre>alter table public.models enable row level security;
+
+drop policy if exists "Public read access" on public.models;
+create policy "Public read access"
+on public.models
+for select
+to anon
+using (true);</pre>
+      <p style="margin-top:12px;font-size:12px;">
+        Storage 버킷 'meshes'도 public read가 필요할 수 있습니다.<br/>
+        Storage → meshes → Configuration → "Public bucket" 토글을 켜주세요.
+      </p>
+      <p style="margin-top:12px;font-size:12px;color:var(--muted);">
+        실제 데이터는 없는 상태일 수도 있습니다 — 우측 상단 🔧 진단 버튼을 눌러 콘솔(F12)에서 raw 응답을 확인해보세요.
+      </p>
+    </div>`;
+}
+
+function renderErrorState(status, body) {
+  const grid = document.getElementById('galleryGrid');
+  const isRls = status === 401 || status === 403;
+  grid.innerHTML = `
+    <div class="empty-diag">
+      <h3><span class="lbl lbl-err">에러 ${status}</span>갤러리를 불러오지 못했습니다</h3>
+      <p>Supabase가 에러 응답을 반환했습니다.${isRls ? ' 권한(RLS) 문제일 가능성이 높습니다.' : ''}</p>
+      <pre>${(body || '').substring(0, 800)}</pre>
+      <p style="margin-top:12px;font-size:12px;">
+        F12 → Console 탭에서 더 자세한 정보를 볼 수 있습니다. 🔧 진단 버튼도 활용해보세요.
+      </p>
+    </div>`;
+}
+
 async function loadGallery() {
   const grid = document.getElementById('galleryGrid');
   grid.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">로딩 중...</div>';
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/models?order=created_at.desc&limit=50`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/models?select=*&order=created_at.desc&limit=50`, {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
     });
-    if (!res.ok) throw new Error('DB 조회 실패: ' + res.status);
-    const rows = await res.json();
-    if (!rows.length) {
-      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">아직 생성된 모델이 없어요. 파이프라인에서 이미지를 실행해보세요!</div>';
+
+    // === Improved error handling: read body even on non-OK ===
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Supabase ${res.status}:`, body);
+      renderErrorState(res.status, body);
       return;
     }
+
+    const rows = await res.json();
+    if (!Array.isArray(rows)) {
+      renderErrorState(0, '예상과 다른 응답 형식: ' + JSON.stringify(rows).substring(0, 300));
+      return;
+    }
+
+    if (!rows.length) {
+      // === KEY FIX: 0건 반환의 진짜 원인을 사용자에게 표시 ===
+      renderEmptyDiagnostic(
+        '모델이 0건으로 반환됩니다',
+        'Supabase Table Editor에는 데이터가 보이는데도 0건이 반환된다면, ' +
+        '가장 흔한 원인은 <b>RLS (Row Level Security) 정책 부재</b>입니다. ' +
+        'Table Editor는 관리자(postgres) 권한으로 동작해서 모든 행을 보여주지만, ' +
+        '브라우저는 anon 키로 접근하기 때문에 SELECT 정책이 없으면 빈 배열을 받습니다.'
+      );
+      return;
+    }
+
+    // === Render gallery (safe accessors for optional columns) ===
     grid.innerHTML = rows.map(row => {
-      const date = new Date(row.created_at).toLocaleString('ko-KR');
-      const thumb = row.input_image_url || row.thumbnail_url;
+      const date = row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '';
+      const thumb = row.input_image_url || row.thumbnail_url || '';
       const thumbHtml = thumb
         ? `<img class="gallery-thumb" src="${thumb}" alt="thumbnail" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML='<div class=gallery-thumb-placeholder>🧊</div>'">`
         : `<div class="gallery-thumb-placeholder">🧊</div>`;
@@ -2789,11 +2651,16 @@ async function loadGallery() {
       const likes = row.likes || 0;
       const objUrl = row.obj_url || '';
       const texUrl = row.tex_url || '';
+      const mtlUrl = row.mtl_url || '';
+      const tdmUrl = row.tdm_url || '';
+      const username = row.username || '';
+      const safeCategory = (row.category || '3D 모델').replace(/'/g, "\\'");
+
       return `
         <div class="gallery-card">
-          <div style="position:relative;cursor:pointer;" onclick="openModelViewer('${objUrl}','${texUrl}','${row.category||'3D 모델'}')">
+          <div style="position:relative;cursor:pointer;" onclick="openModelViewer('${objUrl}','${texUrl}','${safeCategory}')">
             ${thumbHtml}
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;background:rgba(0,0,0,0.5);border-radius:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;background:rgba(0,0,0,0.5);" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
               <span style="font-size:28px;">▶</span>
             </div>
           </div>
@@ -2802,18 +2669,21 @@ async function loadGallery() {
               <div>${category}${bbox}${scaleMm}</div>
               <button onclick="likeModel(${row.id},${likes},this)" style="background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:0;">🤍 ${likes}</button>
             </div>
-            <div class="gallery-card-date">${row.username ? `👤 ${row.username} · ` : ""}${date}</div>
+            <div class="gallery-card-date">${username ? `👤 ${username} · ` : ""}${date}</div>
             <div class="gallery-card-actions">
-              ${row.tdm_url ? `<a href="${row.tdm_url}" download>⬇ .3dm</a>` : ''}
+              ${tdmUrl ? `<a href="${tdmUrl}" download>⬇ .3dm</a>` : ''}
               ${objUrl ? `<a href="${objUrl}" download>⬇ OBJ</a>` : ''}
-              ${row.mtl_url ? `<a href="${row.mtl_url}" download>🎨 MTL</a>` : ''}
+              ${mtlUrl ? `<a href="${mtlUrl}" download>🎨 MTL</a>` : ''}
               ${texUrl ? `<a href="${texUrl}" download>🖼 텍스처</a>` : ''}
             </div>
           </div>
         </div>`;
     }).join('');
+
+    log(`갤러리 로드: ${rows.length}건`, 'ok');
   } catch (e) {
-    grid.innerHTML = `<div style="color:var(--err);font-size:14px;padding:40px;text-align:center;grid-column:1/-1;">갤러리 로드 실패: ${e.message}</div>`;
+    console.error('Gallery load error:', e);
+    renderErrorState(0, e.message + '\n\n' + (e.stack || ''));
   }
 }
 
